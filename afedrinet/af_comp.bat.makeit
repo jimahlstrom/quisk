@@ -1,0 +1,1 @@
+gcc -o afedrinet_io.pyd --shared afedrinet_io.c ../is_key_down.c ../import_quisk_api.c  -O3 -I"../" -I"C:\Programs\Python27\include" -L"C:\Programs\Python27\libs" -lws2_32 -lpython27 

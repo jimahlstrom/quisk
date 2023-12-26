@@ -1,0 +1,3 @@
+The files in this afedrinet directory came from http://www.afedri-sdr.com. Only slight
+modifications were made by N2ADR. Thanks Alex!!!
+N2ADR: Changes made 26 January 2019.

@@ -1,0 +1,5 @@
+#!/bin/bash
+#replace include path and library name to right one for your system
+# for example for Python 2.7 it will look like -I"/usr/include/python2.7/"  -lpython2.7
+#/usr/local/Cellar/python/2.7.10_2/Frameworks/Python.framework/Versions/2.7/lib/python2.7
+gcc -o afedrinet_io.so --shared afedrinet_io.c ../is_key_down.c ../import_quisk_api.c  -I"../" -I"/opt/local/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7/"  -L"/opt/local/Library/Frameworks/Python.framework/Versions/2.7/lib/" -lpython2.7
