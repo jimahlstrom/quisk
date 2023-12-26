@@ -14,8 +14,8 @@ The web page for this project is  [https://groups.io/g/n2adr-sdr](https://groups
 
 The change log is [here](CHANGELOG.txt).
 
-The documentation is [here](docs.html).
+The documentation is [here](http://james.ahlstrom.name/quisk/docs.html).
 
-The help file is [here](help.html).
+The help file is [here](http://james.ahlstrom.name/quisk/help.html).
 
 This site is under construction. Check back soon.
