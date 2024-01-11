@@ -315,6 +315,7 @@ extern play_state_t quisk_play_state;		// startup, receiving, sidetone
 extern int freedv_current_mode;			// current FreeDV mode; 700D, @)@) etc.
 extern int n_modem_sample_rate;			// Receive data, decimate to modem_sample_rate, FreeDV codec output data at speech_sample_rate
 extern int n_speech_sample_rate;		// Microphone decimate to speech_sample_rate, Freedv codec output data at modem_sample_rate, interpolate to 48000
+extern int n_max_modem_samples;			// maximum input to freedv_rx()
 extern int quisk_start_cw_delay;		// milliseconds to delay output on serial or MIDI CW key down
 extern int quisk_start_ssb_delay;		// milliseconds to discard output for all modes except CW
 extern struct sound_dev * quiskPlaybackDevices[];	// array of Playback sound devices
@@ -404,8 +405,8 @@ void quisk_set_play_state(void);
 void quisk_poll_hardware_key(void);
 
 // Functions supporting digital voice codecs
-typedef int  (* ty_dvoice_codec_rx)(complex double *, double *, int, int);
-typedef int  (* ty_dvoice_codec_tx)(complex double *, double *, int);
+typedef int  (* ty_dvoice_codec_rx)(short *, double *, int, int);
+typedef int  (* ty_dvoice_codec_tx)(complex double *, double *, int, int);
 extern ty_dvoice_codec_rx  pt_quisk_freedv_rx;
 extern ty_dvoice_codec_tx  pt_quisk_freedv_tx;
 

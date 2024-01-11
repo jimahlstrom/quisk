@@ -626,32 +626,32 @@ static int tx_filter_digital(complex double * filtered, int count)
 static int tx_filter_freedv(complex double * filtered, int count, int encode)
 {	// Input samples are creal(filtered), output is filtered.
 	// This filter is used for digital voice.
-	// changes by Dave Roberts, G8KBB, for additional modes June, 2020.
+	// Changes by Dave Roberts, G8KBB, for additional modes June, 2020.
+	// Modified by N2ADR January, 2024.
 	int i;
 	// The input sample rate is mic_sample_rate, either 8000 or 48000 sps.
-	// The FreeDV codec requires an input n_speech_sample_rate of either 8000 or 16000 sps depending on the mode. Input is always real.
-	// The FreeDV codec will output samples at n_modem_sample_rate of 8000, 16000 or 48000 sps depending on the mode, and output may be real or complex.
+	// The FreeDV codec requires an input speech_sample_rate of either 8000 or 16000 sps depending on the mode. Input is always real.
+	// The FreeDV codec will output samples at modem_sample_rate of 8000 or 48000 sps depending on the mode, and output may be real or complex.
 	double dtmp, magn, dsample;
+	int modem_sample_rate, speech_sample_rate, use_filter, is_real;
 	static int samples_size = 0;
-	static int last_rx_mode;
-	static int last_freedv_mode;
 	static int do_init = 1;
 	static double aaa, bbb, ccc, Xmin, Xmax, Ymax;
 	static double time_long, time_short;
 	static double inMax=0.3;
 	static double * dsamples = NULL;
-	static struct quisk_cFilter filter2;
-	static struct quisk_dFilter filtDecim;
-	static struct quisk_cFilter cfiltInterp;
+	static struct quisk_cFilter filter1, filter2;
+	static struct quisk_dFilter filtDecim48to16, filtDecim16to8;;
+	static struct quisk_cFilter cfiltInterp8to48;
 
 	if (do_init) {		// initialization
 		//QuiskWavWriteOpen(&hWav, "jim.wav", 3, 1, 4, 8000, 1.0 / CLIP16);
 		do_init = 0;
-		last_rx_mode = -1;
-		last_freedv_mode = -1;
-		memset(&filter2, 0, sizeof(filter2));
-		quisk_filt_dInit(&filtDecim,  quiskLpFilt48Coefs, sizeof(quiskLpFilt48Coefs)/sizeof(double));   // pass 3000, stop 4000
-		quisk_filt_cInit(&cfiltInterp, quiskLpFilt48Coefs, sizeof(quiskLpFilt48Coefs)/sizeof(double));
+		quisk_filt_cInit(&filter1, quiskLpFilt48Coefs, sizeof(quiskLpFilt48Coefs)/sizeof(double));  // at 48000 sps pass 3000 stop 4000 times two plus 3000
+		quisk_filt_cInit(&filter2, quiskFilt53D2Coefs, sizeof(quiskFilt53D2Coefs)/sizeof(double));  // at 8000 sps pass 1500 stop 1800 times two plus 1500
+		quisk_filt_cInit(&cfiltInterp8to48, quiskLpFilt48Coefs, sizeof(quiskLpFilt48Coefs)/sizeof(double));
+		quisk_filt_dInit(&filtDecim48to16, quiskAudio24p3Coefs, sizeof(quiskAudio24p3Coefs)/sizeof(double));	// pass 6000 stop 8000
+		quisk_filt_dInit(&filtDecim16to8, quiskFilt16dec8Coefs, sizeof(quiskFilt16dec8Coefs)/sizeof(double));	// pass 3000 stop 4000
 		Ymax = pow(10.0,  - 1 / 20.0);				// maximum y
 		Xmax = pow(10.0,  3 / 20.0);				// x where slope is zero; for x > Xmax, y == Ymax
 		Xmin = Ymax - fabs(Ymax - Xmax);			// x where slope is 1 and y = x; start of compression
@@ -660,36 +660,38 @@ static int tx_filter_freedv(complex double * filtered, int count, int encode)
 		bbb = -2.0 * aaa * Xmax;
 		ccc = Ymax - aaa * Xmax * Xmax - bbb * Xmax;
 	}
-	if (last_freedv_mode != freedv_current_mode) {		// correct filter2 depends on freedv mode
-		last_freedv_mode = freedv_current_mode;
-		last_rx_mode = -1;	// re-tune new filter
-		if (filter2.cSamples)
-			free(filter2.cSamples);
-		filter2.cSamples = NULL;
-		if (filter2.cpxCoefs)
-			free(filter2.cpxCoefs);
-		filter2.cpxCoefs = NULL;
-		if (filter2.cBuf)
-			free(filter2.cBuf);
-		filter2.cBuf = NULL;
-		switch(freedv_current_mode) {
-		case FREEDV_MODE_700D:		// filter2 is not used
+	switch (freedv_current_mode) {		// n_modem_sample_rate and n_speech_sample_rate may not be valid
+		case FREEDV_MODE_2400A:
+		case FREEDV_MODE_2400B:
+			use_filter = 1;		// center frequency 3000
+			is_real = 1;
+			modem_sample_rate = 48000;
+			speech_sample_rate = 8000;
 			break;
-		// TODO: add modes that return real samples that must be converted to complex
+		case FREEDV_MODE_2020:
+			use_filter = 0;
+			is_real = 0;
+			modem_sample_rate = 8000;
+			speech_sample_rate = 16000;
+			break;
+		case FREEDV_MODE_800XA:
+			use_filter = 2;		// center frequency 1500
+			is_real = 1;
+			modem_sample_rate = 8000;
+			speech_sample_rate = 8000;
+			break;
 		default:
-			quisk_filt_cInit(&filter2, quiskFilt53D2Coefs, sizeof(quiskFilt53D2Coefs)/sizeof(double));  // pass 1500, stop 1800
+			use_filter = 0;
+			is_real = 0;
+			modem_sample_rate = 8000;
+			speech_sample_rate = 8000;
 			break;
-		}
 	}
-	if (last_rx_mode != (int)rxMode) {	// change to sideband
-		last_rx_mode = rxMode;
-		if (rxMode == FDV_U)	 // upper sideband
-			quisk_filt_tune((struct quisk_dFilter *)&filter2, 1600.0 / n_modem_sample_rate, 1);
-		else if (rxMode == FDV_L)   // lower sideband
-			quisk_filt_tune((struct quisk_dFilter *)&filter2, 1600.0 / n_modem_sample_rate, 0);
-	}
-	if ( ! filtered)
+	if ( ! filtered) {	// rxMode changed
+		quisk_filt_tune((struct quisk_dFilter *)&filter1, 3000.0 / 48000.0, rxMode != FDV_L);
+		quisk_filt_tune((struct quisk_dFilter *)&filter2, 1500.0 / 8000.0, rxMode != FDV_L);
 		return 0;
+	}
 	// check size of dsamples[] buffer
 	if (count > samples_size) {
 		samples_size = count * 2;
@@ -701,12 +703,25 @@ static int tx_filter_freedv(complex double * filtered, int count, int encode)
 	for (i = 0; i < count; i++)
 		dsamples[i] = creal(filtered[i]) / CLIP16;	// normalize to 1.0000
 	// Decimate to 8000 Hz or to 16000 depending on mode (and hence setting of sample rate)
-	if (quisk_sound_state.mic_sample_rate == 48000)
-		count = quisk_dDecimate(dsamples, count, &filtDecim, quisk_sound_state.mic_sample_rate / n_speech_sample_rate);
-	else if (quisk_sound_state.mic_sample_rate == 8000 && n_speech_sample_rate != 8000)
+	if (quisk_sound_state.mic_sample_rate == 48000) {
+		switch (speech_sample_rate) {
+		case 16000:
+			count = quisk_dDecimate(dsamples, count, &filtDecim48to16, 3);
+			break;
+		case 8000:
+			count = quisk_dDecimate(dsamples, count, &filtDecim48to16, 3);
+			count = quisk_dDecimate(dsamples, count, &filtDecim16to8, 2);
+			break;
+		default:
+			QuiskPrintf("Failure to convert speech input rate in tx_filter_freedv\n");
+			break;
+		}
+	}
+	else if (quisk_sound_state.mic_sample_rate == 8000 && speech_sample_rate != 8000) {
 		QuiskPrintf("Failure to convert input rate in tx_filter_freedv\n");
+	}
 	// Measure average peak input audio level and limit
-	dtmp = 1.0 / n_speech_sample_rate;		// sample time
+	dtmp = 1.0 / speech_sample_rate;		// sample time
 	time_long   = 1.0 - exp(- dtmp / 3.000);
 	time_short  = 1.0 - exp(- dtmp / 0.005);
 	for (i = 0; i < count; i++) {
@@ -730,13 +745,15 @@ static int tx_filter_freedv(complex double * filtered, int count, int encode)
 	}
 	//QuiskWavWriteD(&hWav, dsamples, count);
 	if (encode && pt_quisk_freedv_tx)   // Encode audio into digital modulation
-		count = (* pt_quisk_freedv_tx)(filtered, dsamples, count);
+		count = (* pt_quisk_freedv_tx)(filtered, dsamples, count, is_real);
 	//quisk_calc_audio_graph(CLIP16, filtered, NULL, count, 0);
-	if (filter2.cSamples)	// convert float samples to complex with an analytic filter
+	if (use_filter == 1)	// convert float samples to complex with an analytic filter
+		count = quisk_cCDecimate(filtered, count, &filter1, 1);
+	else if (use_filter == 2)
 		count = quisk_cCDecimate(filtered, count, &filter2, 1);
 	// Interpolate up to 48000
-	if (MIC_OUT_RATE != n_modem_sample_rate ) 
-		count = quisk_cInterpolate(filtered, count, &cfiltInterp, MIC_OUT_RATE / n_modem_sample_rate);
+	if (MIC_OUT_RATE != modem_sample_rate ) 
+		count = quisk_cInterpolate(filtered, count, &cfiltInterp8to48, MIC_OUT_RATE / modem_sample_rate);
 	return count;
 }
 

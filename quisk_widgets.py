@@ -1549,6 +1549,8 @@ class QuiskMenu(wx.Menu):
     item.Check(is_checked)
     self.InitData(item, handler)
     return item
+  def AppendSeparator(self):
+    wx.Menu.AppendSeparator(self)
   def IsItemChecked(self, item_text):
     nid = self.item_text2id[item_text]
     menu_item = self.FindItemById(nid)

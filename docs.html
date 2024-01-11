@@ -131,7 +131,7 @@ button on the lower right.
 <h2>News</h2>
 <p>
 The newest versions of Linux and Raspberry Pi OS do not allow installing Quisk in the system Python package directory.
-I am working on a solution for this.
+Use the Linux Source Installation below instead.
 </p>
 <br>
 <p>
@@ -189,23 +189,22 @@ Many others contributed to Quisk, and are mentioned in comments in the source co
 <h2 id="Installation">Installation</h2>
 <p>
 Quisk is free open source software written in Python and C. It is hosted on the  PyPi repository
-<a href="https://pypi.org">https://pypi.org</a>.
-It can be installed using the standard Python setup tools. See specific directions below.
+<a href="https://pypi.org">https://pypi.org</a> and it is available on github.
 </p>
 <br>
 <p>
 If you have Python 3 installed on your computer, just continue to use that version.
-<b>Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11.</b>
-If you want to install a more recent version, uninstall the old version first.
+<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11.</b>
+If you want to install a more recent version of Python, uninstall the old version first.
 Running multiple versions of Python is possible but can be confusing and is not necessary.
 A Quisk installation is needed for each version of Python you have.
 </p>
 <br>
 <h3 id="g0.2.2">Windows Initial Installation</h3>
 <p>
-Windows does not include Python, so you must first install the most recent version of 64-bit Python 3.
+Windows does not include Python, so you must first install a recent version of 64-bit Python 3.
 If you already have 64-bit Python 3 installed, just keep using it.
-<b>Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11.</b>
+<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11.</b>
 There may be newer versions of Python, but until support is added, use the versions listed above.
 Python is available from <a href="http://www.python.org/">http://www.python.org</a>.
 There is an option to <b>Add Python to PATH</b>. You MUST select
@@ -280,186 +279,111 @@ python -m pip uninstall quisk
 </p>
 <h3 id="g0.2.1">Linux Initial Installation</h3>
 <p>
-<br>
-The libsoundio-dev module is NO LONGER required!
-<br>
-<br>
 Linux runs on a wide variety of computers with different processors and versions of Linux.
 Therefore Quisk is compiled for each one. To do this, Python and a number of other packages are required.
-Most likely both Python2 and Python3 are already installed on your computer. Either the 32-bit or 64-bit
-version will work. On my Ubuntu machine, "python2" starts Python2 and "python3" starts Python3.
+Most likely both Python2 and Python3 are already installed on your computer.
+On my Ubuntu machine, "python2" starts Python2 and "python3" starts Python3.
 Just "python" starts Python2, but this will change as Python2 is phased out.
-Python2 is obsolete, so you should only install Quisk to Python3, and use "python3" to start it.
-Install these packages. Some of these can be installed from Python using "pip",
-but it is better to use your package manager because pip and the package manager do not coordinate.
+<b>Python2 is obsolete</b>, so you should only install Quisk to Python3, and use "python3" to start it.
+Install these packages by using your package manager, not Python pip.
 If newer versions of these packages become available, Linux will notify you.
-Use the most recent version of python3-wxgtk available.
+Use the most recent version of python3-wxgtk available for your Python version.
 <br><br>
 </p>
-<table>
-  <tr>
-    <th>Package Description</th>
-    <th>Python3 Package</th>
-  </tr>
-  <tr>
-    <td>Discrete fourier transform</td>
-    <td>sudo apt-get install libfftw3-dev</td>
-  </tr>
-  <tr>
-    <td>Alsa sound library</td>
-    <td>sudo apt-get install libasound2-dev</td>
-  </tr>
-  <tr>
-    <td>Portaudio sound library</td>
-    <td>sudo apt-get install portaudio19-dev</td>
-  </tr>
-  <tr>
-    <td>Pulseaudio sound library</td>
-    <td>sudo apt-get install libpulse-dev</td>
-  </tr>
-  <tr>
-    <td>Python development</td>
-    <td>sudo apt-get install python3-dev</td>
-  </tr>
-  <tr>
-    <td>Python library development</td>
-    <td>sudo apt-get install libpython3-dev</td>
-  </tr>
-  <tr>
-    <td>wxPython GUI library</td>
-    <td>sudo apt-get install python3-wxgtk4.0</td>
-  </tr>
-  <tr>
-    <td>Python USB</td>
-    <td>sudo apt-get install python3-usb</td>
-  </tr>
-  <tr>
-    <td>Python serial port</td>
-    <td>sudo apt-get install python3-serial</td>
-  </tr>
-  <tr>
-    <td>Python installation tools</td>
-    <td>sudo apt-get install python3-setuptools</td>
-  </tr>
-  <tr>
-    <td>Pip package installer</td>
-    <td>sudo apt-get install python3-pip</td>
-  </tr>
-</table>
 <p>
-<br><br>
+These are part of your operating system. You only install them once unless it changes.
+</p>
+<br>
+<pre>
+sudo apt-get install libfftw3-dev
+sudo apt-get install libasound2-dev
+sudo apt-get install portaudio19-dev
+sudo apt-get install libpulse-dev
+sudo apt-get install python3-dev
+sudo apt-get install libpython3-dev
+</pre>
+<br>
+<p>
+These are part of Python. You only install them once unless the Python started by "python3" changes.
+</p>
+<br>
+<pre>
+sudo apt-get install python3-wxgtk4.0
+sudo apt-get install python3-usb
+sudo apt-get install python3-serial
+sudo apt-get install python3-setuptools
+</pre>
+<br>
+<p>
 If you want to use the SoapySDR module make sure that SoapySDR is installed from its Pothosware site before you build Quisk.
 Otherwise Quisk will not have the files it needs. You can install SoapySDR later, but then you
-will need to reinstall Quisk. This is also true of any other external packages that have their own C source.
+will need to run "make" again. This is also true of any other external packages that have their own C source.
 <br>
 <br>
 </p>
 <h3>Linux Pip Installation</h3>
+<br>
 <p>
-You can use the Python program "pip" to install Quisk into the Python package directory. This is the easiest
-method, but it will not install the source files. If you want the source files see below.
-<br>
-<br>
-sudo -H python3 -m pip install --upgrade quisk
-<br>
-<br>
-This will install the Python files and all other files except for the C source. This is the easiest method
-if you do not want to work in C.
-To run Quisk, use this command from a terminal:
-<br>
-<br>
-python3 -m quisk
-<br>
-<br>
-You can create a panel launcher on your desktop with the command to run Quisk.
-<br>
-<br>
-If the installation of Quisk fails, you can force re-installation:
-<br>
-<br>
+<b> Installation of Quisk using Python tools like pip is deprecated</b>.
 </p>
-<pre>
-sudo -H python3 -m pip uninstall quisk
-sudo -H python3 -m pip install  --no-cache-dir  --force-reinstall  quisk
-</pre>
+<br>
 <p>
+Installation to the system Python is no longer allowed, and you may get the message "error: externally-managed-environment".
+If you used pip to install Quisk you can continue to upgrade with "sudo python3 -m pip install --upgrade quisk"
+until you get this error message. But it is best to uninstall the pip Quisk. If you installed with pipx, uninstall that too.
+</p>
 <br>
-You can also install an older version of Quisk. You may need to do that if the most recent version fails for some reason. Use:
+<pre>
+sudo python3 -m pip uninstall quisk
+pipx uninstall quisk
+</pre>
+<br>
+<p>
+Then use the Linux Source Installation.
+</p>
 <br>
 <br>
-sudo -H python3 -m pip install quisk==4.1.51
+<h3 id="LSI">Linux Source Installation</h3>
+<p>
+On Linux, Quisk is installed from github, and it is contained in a "quisk" directory. First you need to decide where to put the
+quisk directory. Anywhere will do, but it is best to use a directory where you have write permission so
+you don't need to use "sudo". The examples below assume you used your home directory indicated by "~". Just replace "~"
+by your desired location.
+</p>
 <br>
+<p>
+To install a fresh copy of Quisk, change to your desired directory, clone the github site, change to the quisk directory and run "make".
+Then run the python program quisk.py.
+</p>
 <br>
+<pre>
+cd ~
+git clone https://github.com/jimahlstrom/quisk
+cd quisk
+make
+python3 quisk.py
+</pre>
+<br>
+<p>
+If "make" fails, you probably have missing packages or missing "-dev" packages. Try to figure out what is missing from the error messages.
+You only clone github for the initial installation. To update Quisk, use pull:
+</p>
+<br>
+<pre>
+cd ~/quisk
+git pull
+</pre>
+<br>
+<p>
+You run Quisk by running the file quisk.py with python3. For example, "python3 /home/jim/quisk/quisk.py".
+You can create a desktop icon to do that, but the method depends on your version of Linux.
+<b>Never run Quisk with root privelege by using sudo. Fix the permission problem instead.</b>
 To get started you must tell Quisk what kind of radio hardware you have. Press the Config button and select Radios.
 Then set your sound devices for that radio; the device for the radio speakers, the microphone and so forth. All configuration
 is (mostly) from the Config button. Ignore old directions and don't bother with a config file.
-<br>
-<br>
-To edit the Quisk Python files you need to know where they are. To find out, import quisk and print it:
-<br>
-<br>
-</p>
-<pre>
-jim@IntelNUC:~$ python3
-Python 3.6.9 (default, Oct  8 2020, 12:12:24) 
-[GCC 8.4.0] on linux
-Type "help", "copyright", "credits" or "license" for more information.
---- import quisk
---- quisk
-module 'quisk' from '/usr/local/lib/python3.6/dist-packages/quisk/__init__.py'
---- 
-
-</pre>
-<br>
-<h3>Linux Pip Upgrade</h3>
-<p>
-To upgrade to a newer version of Quisk, use pip:
-<br>
-<br>
-sudo python3 -m pip install --upgrade quisk
-<br>
-<br>
-</p>
-<h3>Linux Uninstall Quisk</h3>
-<p>
-sudo python3 -m pip uninstall quisk
+To uninstall Quisk, just delete the quisk directory.
 </p>
 <br>
-<br>
-<h3>Linux Source Installation</h3>
-<p>
-The previous method using pip is simple, but will not install the C source files. If you want those proceed as follows.
-Go to <a href="https://pypi.org/project/quisk/">https://pypi.org/project/quisk</a> and under "Navigation"
-select "Download files". Download the quisk-x-x-xx.tar.gz file. This is the source file. The ".whl" files are for Windows.
-Change directory to where the file was downloaded, probably "Downloads", and uncompress and untar it.
-<br><br>
-cd  ~/Downloads
-<br>
-tar zxf quisk-x.x.xx.tar.gz
-<br><br>
-Change directories to the Quisk directory:
-<br><br>
-cd quisk-x.x.xx
-<br><br>
-Now compile Quisk with the "make" command:
-<br><br>
-make quisk3
-<br><br>
-If "make" fails, you probably have missing packages or missing "-dev" packages. Try to figure out what is missing from the error messages.
-Now you can run quisk with the command:
-<br><br>
-python3 quisk.py
-<br><br>
-At this point you have a choice of where to install Quisk. You could just rename the quisk-x.x.xx directory
-to a more convenient name, like "quisk" in your home directory, and run Quisk from there.
-This is convenient if you want to
-alter the Quisk code. Or you could install Quisk into the Python system.
-<br><br>
-python2 setup.py build
-<br>
-sudo python2 setup.py install
-<br><br>
-</p>
 <h3 id="g0.2.4">Quisk Files</h3>
 <p>
 <br>

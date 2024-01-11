@@ -32,8 +32,17 @@ typedef void (*freedv_callback_datarx)(void *, unsigned char *packet, size_t siz
 typedef void (*freedv_callback_datatx)(void *, unsigned char *packet, size_t *size);
 
 /* advanced freedv open options required by some modes */
-struct freedv_advanced {	// from freedv_api.h
-	int interleave_frames;
+struct freedv_advanced {
+  int interleave_frames;  // now unused but remains to prevent breaking API for
+                          // legacy apps
+
+  // parameters for FREEDV_MODE_FSK_LDPC
+  int M;             // 2 or 4 FSK
+  int Rs;            // Symbol rate Hz
+  int Fs;            // Sample rate Hz
+  int first_tone;    // Freq of first tone Hz
+  int tone_spacing;  // Spacing between tones Hz
+  char *codename;    // LDPC codename, from codes listed in ldpc_codes.c
 };
 
 #ifdef MS_WINDOWS
@@ -66,11 +75,14 @@ static int handle_index = -1;
 // need access to these here and in quisk.c
 int n_speech_sample_rate = 8000;
 int n_modem_sample_rate = 8000;
+int n_max_modem_samples = 1000;
 
 #define SPEECH_BUF_SIZE		12000		// speech buffer size increased from 3000
+#define MAX_MODEM_SAMPLES	8192		// maximum of n_max_modem_samples for any mode
+#define MAX_SPEECH_SAMPLES	8192		// maximum of n_speech_samples for any mode
 static struct _rx_channel{
 	struct freedv * hFreedv;
-	COMP * demod_in;
+	short * demod_in;
 	int rxdata_index;
 	short speech_out[SPEECH_BUF_SIZE];		// output buffer
 	int speech_available;					// number of samples in output buffer
@@ -164,12 +176,8 @@ static void GetAddrs(void)
 		handle_index = 2;
 		GET_HANDLE2;
 		if ( ! hLib) {
-			handle_index = 3;
-			GET_HANDLE3;
-			if ( ! hLib) {
-				handle_index = 4;
-				GET_HANDLE4;
-			}
+			handle_index = 4;
+			GET_HANDLE4;
 		}
 	}
 	if (hLib) {
@@ -231,19 +239,17 @@ static void GetAddrs(void)
 	return;
 }
 
-static int quisk_freedv_rx(complex double * cSamples, double * dsamples, int count, int bank)	// Called from the sound thread.
-{	// Input digital modulation is cSamples; decoded voice is dsamples.  Each "bank" is a stream of audio.
+static int quisk_freedv_rx(short * sSamples, double * dsamples, int count, int bank)	// Called from the sound thread.
+{	// Input digital modulation is sSamples; decoded voice is dsamples.  Each "bank" is a stream of audio.
 	// caller will have decimated input audio down to n_modem_sample_rate and reduced block size to match reduction
 	// output data will be returned at n_speech_sample_rate with corresponding block sizes
 	int i, nout, need, have, sync;
 	int n_speech_samples;
-	complex double cx;
-	double scale = (double)CLIP32 / CLIP16;	// convert 32 bits to 16 bits
 	struct freedv * hF;
 	struct _rx_channel * pCh;
 	int nCountOut = 1;	// In case we have a higher (or lower) value for o/p count
 
-	if (cSamples == NULL) {		// shutdown
+	if (sSamples == NULL) {		// shutdown
 		for (i = 0; i < MAX_RECEIVERS; i++) {
 			if (rx_channel[i].demod_in) {
 				free(rx_channel[i].demod_in);
@@ -277,20 +283,11 @@ static int quisk_freedv_rx(complex double * cSamples, double * dsamples, int cou
 	nout = 0;
 	need = freedv_nin(hF);
 	for (i = 0; i < count; i++) {
-		cx = cRxFilterOut(cSamples[i], bank, 0);
-		if (rxMode == FDV_L)		// lower sideband
-			cx = conj(cx);
-#if 1 // Try it the other way and remove scaling factor
-		pCh->demod_in[pCh->rxdata_index].real = creal(cx);
-		pCh->demod_in[pCh->rxdata_index].imag = cimag(cx);
-#else
-		pCh->demod_in[pCh->rxdata_index].real = (creal(cx) - cimag(cx));
-		pCh->demod_in[pCh->rxdata_index].imag = 0;
-#endif
+		pCh->demod_in[pCh->rxdata_index] = sSamples[i];
 		pCh->rxdata_index++;
 		if (pCh->rxdata_index >= need) {
 			if (pCh->speech_available + n_speech_samples < SPEECH_BUF_SIZE) {		// check for buffer space
-				have = freedv_comprx(hF, pCh->speech_out + pCh->speech_available, pCh->demod_in);
+				have = freedv_rx(hF, pCh->speech_out + pCh->speech_available, pCh->demod_in);
 				if (freedv_version > 10)
 					sync = freedv_get_sync(hF);
 				else
@@ -325,7 +322,7 @@ static int quisk_freedv_rx(complex double * cSamples, double * dsamples, int cou
 		}
 	}
 	for (nout = 0; nout < pCh->speech_available && nout < nCountOut; nout++)
-		dsamples[nout] = pCh->speech_out[nout] * scale * 0.7;
+		dsamples[nout] = pCh->speech_out[nout] * ((double)CLIP32 / CLIP16 * 0.99);
 	if (nout) {
 		pCh->speech_available -= nout;
 		memmove(pCh->speech_out, pCh->speech_out + nout, (pCh->speech_available) * sizeof(short));
@@ -339,7 +336,7 @@ static int quisk_freedv_rx(complex double * cSamples, double * dsamples, int cou
 	return nout;
 }
 
-static int quisk_freedv_tx(complex double * cSamples, double * dsamples, int count)	// Called from the sound thread.
+static int quisk_freedv_tx(complex double * cSamples, double * dsamples, int count, int is_real)	// Called from the sound thread.
 {	// Input voice samples are dsamples; output digital modulation is cSamples.
 	int i, nout;
 	int n_speech_samples;
@@ -351,16 +348,7 @@ static int quisk_freedv_tx(complex double * cSamples, double * dsamples, int cou
 	static short *real_mod_out = NULL;
 
 	if (dsamples == NULL) {		// shutdown
-		if (mod_out)
-			free(mod_out);
-		mod_out = NULL;
-		if (real_mod_out)
-			free(real_mod_out);
-		real_mod_out = NULL;
-		if (speech_in)
-			free(speech_in);
-		speech_in = NULL;
-		return 0;
+		return 0;	// nothing to do
 	}
 	if ( ! rx_channel[0].hFreedv)
 		return 0;
@@ -371,13 +359,13 @@ static int quisk_freedv_tx(complex double * cSamples, double * dsamples, int cou
 	if( nRatio < 1 || nRatio > 6 )
 		nRatio = 1;
 	if (mod_out == NULL) {		// initialize
-		mod_out = (COMP *)malloc(sizeof(COMP) * n_nom_modem_samples);
-		memset(mod_out, 0, sizeof(COMP) * n_nom_modem_samples);
-		speech_in = (short*)malloc(sizeof(short) * n_speech_samples);
+		mod_out = (COMP *)malloc(sizeof(COMP) * MAX_MODEM_SAMPLES);
+		memset(mod_out, 0, sizeof(COMP) * MAX_MODEM_SAMPLES);
+		speech_in = (short*)malloc(sizeof(short) * MAX_SPEECH_SAMPLES);
 		speech_index=0;
 		mod_index=0;
-		real_mod_out = (short *)malloc(sizeof(short) * n_nom_modem_samples);
-		memset(real_mod_out, 0, sizeof(short) * n_nom_modem_samples);
+		real_mod_out = (short *)malloc(sizeof(short) * MAX_MODEM_SAMPLES);
+		memset(real_mod_out, 0, sizeof(short) * MAX_MODEM_SAMPLES);
 		//if( DEBUG ) printf("Initialise tx buffer size = %d, i/p sample size = %d\n", n_nom_modem_samples, n_speech_samples );
 	}
 	nout = 0;
@@ -386,7 +374,7 @@ static int quisk_freedv_tx(complex double * cSamples, double * dsamples, int cou
 		if (speech_index >= n_speech_samples) {
 			// Calculate a new block, but first write out the rest of the old block
 			// 800xa uses real not complex
-			if( freedv_current_mode == FREEDV_MODE_800XA ) {
+			if( is_real ) {
 				for ( ; mod_index < n_nom_modem_samples; mod_index++)
 					cSamples[nout++] = real_mod_out[mod_index];
 				freedv_tx(rx_channel[0].hFreedv, real_mod_out, speech_in);
@@ -403,7 +391,7 @@ static int quisk_freedv_tx(complex double * cSamples, double * dsamples, int cou
 		else {		// write out samples
 			for( int j=0; j<nRatio; j++) {
 				if (mod_index < n_nom_modem_samples ) {
-					if( freedv_current_mode == FREEDV_MODE_800XA ) {
+					if( is_real ) {
 						cSamples[nout++] = real_mod_out[mod_index];
 					}
 					else {
@@ -471,21 +459,15 @@ static void CloseFreedv(void)	// Called from the GUI thread or sound thread
 			freedv_close(rx_channel[i].hFreedv);
 			rx_channel[i].hFreedv = NULL;
 		}
-#if 0 // g8kbb - unnecessary - quisk_freedv_rx() will do it
-		if (rx_channel[i].demod_in) {
-			free(rx_channel[i].demod_in);
-			rx_channel[i].demod_in = NULL;
-		}
-#endif
 	}
 	quisk_freedv_rx(NULL, NULL, 0, 0);
-	quisk_freedv_tx(NULL, NULL, 0);
+	quisk_freedv_tx(NULL, NULL, 0, 0);
 	freedv_current_mode = -1;
 }
 
 static int OpenFreedv(void)	// Called from the GUI thread or sound thread
 {
-	int i, n_max_modem_samples;
+	int i;
 	struct freedv * hF;
 
 	if ( ! hLib)
@@ -500,7 +482,7 @@ static int OpenFreedv(void)	// Called from the GUI thread or sound thread
 			break;
 		case 3:
 		case 4:
-			printf("freedv_open: codec2 library freedvpkg/libcodec2_32|64.dll|so found, version %d\n", freedv_version);
+			printf("freedv_open: codec2 library freedvpkg/libcodec2_64 found, version %d\n", freedv_version);
 			break;
 		default:
 			printf("freedv_open: Could not find the FreeDV codec2 shared library\n");
@@ -530,18 +512,10 @@ static int OpenFreedv(void)	// Called from the GUI thread or sound thread
 			return 0;	// failure
 		}
 	}
-	if (requested_mode == FREEDV_MODE_700E) {
-		if (handle_index >= 3) {	// Quisk provided codec2
-			CloseFreedv();
-			requested_mode = -1;
-			if (DEBUG)
-				printf("freedv_open: Failure because mode 700E requires a system installation of codec2\n");
-			return 0;	// failure
-		}
-	}
 
    	if ((requested_mode == FREEDV_MODE_700D || requested_mode == FREEDV_MODE_700E) && freedv_open_advanced) {
        	struct freedv_advanced adv;
+	memset(&adv, 0, sizeof(adv));
        	adv.interleave_frames = interleave_frames;
        	hF = freedv_open_advanced(requested_mode, &adv);
    	}
@@ -579,7 +553,7 @@ static int OpenFreedv(void)	// Called from the GUI thread or sound thread
 		rx_channel[i].playing = 0;
 		if (rx_channel[i].demod_in)
 			free(rx_channel[i].demod_in);
-		rx_channel[i].demod_in = (COMP *)malloc(sizeof(COMP) * n_max_modem_samples);
+		rx_channel[i].demod_in = (short *)malloc(sizeof(short) * n_max_modem_samples);
 		if( rx_channel[i].demod_in == NULL) {
 			CloseFreedv();
 			requested_mode = -1;

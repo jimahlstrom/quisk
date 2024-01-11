@@ -1759,7 +1759,7 @@ freedv_tx_msg = ''
 # This is the list of FreeDV modes and their index number.  The starting mode is the first listed.
 freedv_modes = (('Mode 1600', 0), 
 		('Mode 2400A', 3), ('Mode 2400B', 4), ('Mode 800XA', 5),
-		('Mode 700C', 6), ('Mode 700D', 7), ('Mode 2020', 8), ('Mode 700E', 13))
+		('Mode 700C', 6), ('Mode 700D', 7), ('Mode 700E', 13), ('Mode 2020', 8))
 
 # These are the filter bandwidths for each mode.  Quisk has built-in optimized filters
 # for these values, but you can change them if you want.
@@ -1770,7 +1770,7 @@ FilterBwFM	= (8000, 10000, 12000, 16000, 18000, 20000)
 FilterBwIMD	= FilterBwSSB
 FilterBwDGT	= (200, 400, 1500, 3200, 4800, 10000)
 FilterBwEXT	= (8000, 10000, 12000, 15000, 17000, 20000)
-FilterBwFDV	= (1500, 2000, 3000, '', '', '')
+FilterBwFDV	= (1500, 2000, 3000, '6000', '', '')
 
 # If your hardware file defines the method OnButtonPTT(self, event), then Quisk will
 # display a PTT button you can press.  The method must switch your hardware to
