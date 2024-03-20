@@ -168,6 +168,7 @@ static void modem_status(void)
 
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <termios.h>
 
 static int fdComm = -1;			// File descriptor to read the serial port

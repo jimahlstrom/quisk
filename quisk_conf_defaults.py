@@ -419,6 +419,8 @@ hermes_PTT_hang_time = 4
 ## hermes_antenna_tuner			Antenna tuner, text choice
 # This option only applies to the Hermes Lite 2. Set this to None if you don't have a tuner.
 # Set this to "Tune" to control the Icom AH-4 compatible ATU attached to the Hermes Lite 2 end plate.
+# Note that this option only applies to the HL2 end plate, not the IO board.
+# A tuner attached to the IO board is controlled from a button on the last line of the screen.
 # Then when the Spot button is pressed with a positive power, a tune request is sent to the ATU.
 # If the Spot button is pressed with a zero power level, the tuner is set to bypass mode.
 # Changes are immediate (no need to restart).
@@ -1645,6 +1647,15 @@ start_ssb_delay = 100
 # Enter zero to turn off the failsafe timer. If Quisk receives another Tx command, the timer restarts.
 # Changes are immediate (no need to restart).
 maximum_tx_secs = 0
+
+## TxRxSilenceMsec			Tx-Rx silence msec, integer
+# When changing from transmit to receive a radio may receive either noise or the end of the transmission.
+# This may be returned as received audio, and can be heard as a loud pop.
+# This parameter plays silence for the specified number of milliseconds when changing from transmit to receive.
+# Make it long enough to zero out the pop, but not too much longer.
+# It is ignored when in full duplex mode.
+# Changes are immediate (no need to restart).
+TxRxSilenceMsec = 50
 
 ## keyupDelay			Keyup delay msecs, integer
 # This is the key hang time for semi-breakin CW. It is the time in milliseconds

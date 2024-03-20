@@ -1,3 +1,10 @@
+Quisk Version 4.2.30  March 2024
+================================
+A new option "Tx-Rx silence msec" on the Timing configuration screen controls how long
+to suppress Rx audio when switching from Tx to Rx. The previous fixed time was 50 msec.
+
+The SSB squelch control now works on CW too. Please test.
+
 Quisk Version 4.2.29  January 2024
 ==================================
 This version updates the FreeDV library files and program logic. I added a "Monitor"

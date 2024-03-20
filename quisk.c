@@ -181,6 +181,7 @@ int quisk_sidetoneFreq;			// frequency in hertz for the sidetone
 int quisk_start_cw_delay = 15;		// milliseconds to delay output on CW key down
 int quisk_start_ssb_delay = 100;	// milliseconds to discard output on SSB etc. key down
 static int maximum_tx_secs;		// Failsafe timeout for Tx in seconds
+static int TxRxSilenceMsec = 50;	// Play silence in msec on Tx to Rx
 static int key_is_down = 0;		// internal key state up or down
 
 static double agcReleaseGain=80;		// AGC maximum gain
@@ -1921,6 +1922,10 @@ static int quisk_process_demodulate(complex double * cSamples, double * dsamples
 		}
 		if(bank == 0)
 			dAutoNotch(dsamples, nSamples, rit_freq, quisk_filter_srate);
+		if (ssb_squelch_enabled) {
+			ssb_squelch(dsamples, nSamples, quisk_filter_srate, MeasureSquelch + bank);
+			d_delay(dsamples, nSamples, bank, SQUELCH_FFT_SIZE);
+		}
 		nSamples = quisk_dInterpolate(dsamples, nSamples, &Storage[bank].filtAudio12p2, 2);
 		nSamples = quisk_dInterp2HB45(dsamples, nSamples, &Storage[bank].HalfBand6);
 		nSamples = quisk_dInterp2HB45(dsamples, nSamples, &Storage[bank].HalfBand7);
@@ -1940,6 +1945,10 @@ static int quisk_process_demodulate(complex double * cSamples, double * dsamples
 		}
 		if(bank == 0)
 			dAutoNotch(dsamples, nSamples, rit_freq, quisk_filter_srate);
+		if (ssb_squelch_enabled) {
+			ssb_squelch(dsamples, nSamples, quisk_filter_srate, MeasureSquelch + bank);
+			d_delay(dsamples, nSamples, bank, SQUELCH_FFT_SIZE);
+		}
 		nSamples = quisk_dInterpolate(dsamples, nSamples, &Storage[bank].filtAudio12p2, 2);
 		nSamples = quisk_dInterp2HB45(dsamples, nSamples, &Storage[bank].HalfBand6);
 		nSamples = quisk_dInterp2HB45(dsamples, nSamples, &Storage[bank].HalfBand7);
@@ -2458,7 +2467,7 @@ int quisk_process_samples(complex double * cSamples, int nSamples)
 				quisk_sound_state.sample_rate;
 		nout = (int)dOutCounter;			// number of samples to output
 		dOutCounter -= nout;
-		playSilence = (int)(quisk_sound_state.playback_rate * 50e-3);	// Play silence after sidetone ends, number of samples
+		playSilence = (int)(quisk_sound_state.playback_rate * 1E-3 * TxRxSilenceMsec);	// Play silence after sidetone ends, number of samples
 		keyupEnvelope = 0;
 		if (quisk_active_sidetone == 2 && QUISK_CWKEY_DOWN) {	// Play sidetone instead of radio for CW
 			if (! sidetoneIsOn) {			// turn on sidetone
@@ -4694,6 +4703,9 @@ static PyObject * ImmediateChange(PyObject * self, PyObject * args)	// called fr
 	else if ( ! strcmp(name, "maximum_tx_secs")) {
 		maximum_tx_secs = QuiskGetConfigInt(name, 0);
 	}
+	else if ( ! strcmp(name, "TxRxSilenceMsec")) {
+		TxRxSilenceMsec = QuiskGetConfigInt(name, 50);
+	}
 	Py_INCREF (Py_None);
 	return Py_None;
 }
@@ -5851,6 +5863,7 @@ static PyObject * record_app(PyObject * self, PyObject * args)
 	quisk_start_cw_delay = QuiskGetConfigInt("start_cw_delay", 15);
 	quisk_start_ssb_delay = QuiskGetConfigInt("start_ssb_delay", 100);
 	maximum_tx_secs = QuiskGetConfigInt("maximum_tx_secs", 0);
+	TxRxSilenceMsec = QuiskGetConfigInt("TxRxSilenceMsec", 50);
 	quisk_sound_state.sample_rate = rate;
 	fft_sample_rate = rate;
 	is_little_endian = 1;	// Test machine byte order

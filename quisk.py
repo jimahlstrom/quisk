@@ -3762,7 +3762,8 @@ class App(wx.App):
     # Find the data width from a list of preferred sizes; it is the width of returned graph data.
     # The graph_width is the width of data_width that is displayed.
     if conf.window_width > 0:
-      wFrame, h = frame.GetClientSize().Get()				# client window width
+      #wFrame, h = frame.GetClientSize().Get()				# client window width
+      wFrame = conf.window_width - 15	# Thanks to Nick Abramenko, RA3PKJ 
       graph = GraphScreen(frame, self.width//2, self.width//2, None)	# make a GraphScreen to calculate borders
       self.graph_width = wFrame - (graph.width - graph.graph_width)		# less graph borders equals actual graph_width
       graph.Destroy()
