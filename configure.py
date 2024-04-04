@@ -1484,7 +1484,7 @@ class MidiKnob(QuiskControl):
     self.menu = wx.Menu()
     for name in application.midiControls:
       ctrl, func = application.midiControls[name]
-      if not ctrl or not func:
+      if name != "Tune" and (not ctrl or not func):
         continue
       item = self.menu.Append(-1, name)
       self.Bind(wx.EVT_MENU, self.OnMenu, item)
@@ -1519,7 +1519,7 @@ class MidiJogWheel(QuiskControl):
     controls = wx.Menu()
     for name in application.midiControls:
       ctrl, func = application.midiControls[name]
-      if not ctrl or not func:
+      if name != "Tune" and (not ctrl or not func):
         continue
       item = controls.Append(-1, name)
       self.Bind(wx.EVT_MENU, self.OnMenu, item)

@@ -1,3 +1,9 @@
+Quisk Version 4.2.31  March 2024
+================================
+The "Tune" item was missing from the Midi menus. I fixed it but I didn't test it because I did
+not borrow Ben's Midi controller. Please test it yourself and let me know if it works. The Midi
+speed can be set from the menu too.
+
 Quisk Version 4.2.30  March 2024
 ================================
 A new option "Tx-Rx silence msec" on the Timing configuration screen controls how long
