@@ -155,6 +155,7 @@ static int freedv_monitor;		// pass the Freedv audio to the speakers instead of 
 
 static complex double PySampleBuf[SAMP_BUFFER_SIZE];	// buffer for samples returned from Python
 static int PySampleCount;				// count of samples in buffer
+static bool quisk_tx_inhibit;
 
 static int multirx_data_width;			// width of graph data to return
 static int multirx_fft_width;			// size of FFT samples
@@ -2741,7 +2742,7 @@ int quisk_process_samples(complex double * cSamples, int nSamples)
 				multirx_cSamples[0][i] = dsamples2[i] + I * dsamples2[i];
 			process_agc(&Agc3, multirx_cSamples[0], n, 0);
 		}
-		play_sound_interface(quiskPlaybackDevices[QUISK_INDEX_SUB_RX1], n, multirx_cSamples[0], 1, 1.0);
+		play_sound_interface(quiskPlaybackDevices[QUISK_INDEX_SUB_RX1], n, multirx_cSamples[0], 1, digital_output_level);
 	}
 
 	// Perhaps decimate by an additional fraction
@@ -3156,6 +3157,8 @@ static PyObject * get_params(PyObject * self, PyObject * args)
 		return PyInt_FromLong(quisk_serial_ptt);
 	if (strcmp(name, "hl2_txbuf_errors") == 0)
 		return PyInt_FromLong(hl2_txbuf_errors);
+	if (strcmp(name, "quisk_tx_inhibit") == 0)
+		return PyInt_FromLong((long)quisk_tx_inhibit);
 	Py_INCREF (Py_None);
 	return Py_None;
 }
@@ -3759,6 +3762,7 @@ static int read_rx_udp10(complex double * samp)	// Read samples from UDP using t
 				//code_version = quisk_hermes_to_pc[3];
 				if ((quisk_hermes_to_pc[0] & 0x01) != 0)	// C1
 					quisk_sound_state.overrange++;
+				quisk_tx_inhibit = (quisk_hermes_to_pc[0] & 0x02) == 0;	// should limit to Hermes Lite2 only
 				hardware_ptt = buf[start] & 0x01;	// C0 bit zero is PTT
 				quisk_hardware_cwkey = (buf[start] & 0x04) >> 2;	// C0 bit two is CW key state
 				switch (hl2_txbuf_state) {

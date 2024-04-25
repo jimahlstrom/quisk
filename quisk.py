@@ -1762,6 +1762,12 @@ class GraphDisplay(wx.Window):
       dc.SetTextForeground(conf.color_graph_msg_fg)
       dc.SetBackgroundMode(wx.SOLID)
       dc.DrawText(self.display_text, 0, 0)
+    if application.tx_inhibit:
+      dc.SetFont(self.font)
+      dc.SetTextBackground(conf.color_graph_msg_bg)
+      dc.SetTextForeground("red")
+      dc.SetBackgroundMode(wx.SOLID)
+      dc.DrawText(" *** Tx Inhibit ***", 0, self.chary * 15 // 10)
   def DrawFilter(self, dc):
     dc.SetPen(wx.TRANSPARENT_PEN)
     dc.SetLogicalFunction(wx.COPY)
@@ -3497,6 +3503,8 @@ class App(wx.App):
     self.midi_message = []
     self.idName2Button = {}
     self.midi_handler = None
+    self.tx_inhibit = 0
+    self.old_tx_inhibit = 0
     if conf.use_rx_udp == 10:		# Hermes UDP protocol
       self.bandscope_clock = conf.rx_udp_clock
     else:
@@ -6370,7 +6378,7 @@ class App(wx.App):
         Hardware.RepeaterOffset(0)
         QS.set_ctcss(0)
         QS.tx_hold_state(1)
-    if QS.is_key_down():	# Tx indicator
+    if QS.is_key_down() and not self.tx_inhibit:	# Tx indicator
       if not self.tx_indicator:
         self.tx_indicator = True
         self.pttButton.Tx.TurnOn(True)
@@ -6431,6 +6439,8 @@ class App(wx.App):
             self.hot_key_ptt_active = False
         self.hot_key_ptt_was_down = self.hot_key_ptt_is_down
         self.hot_key_ptt_pressed = False
+      if self.tx_inhibit:
+        ptt = False
       if ptt is True and not ptt_button_down:
         self.SetPTT(True)
       elif ptt is False and ptt_button_down:
@@ -6501,6 +6511,14 @@ class App(wx.App):
     if self.timer - self.heart_time0 > 0.10:	# call hardware to perform background tasks:
       self.heart_time0 = self.timer
       Hardware.HeartBeat()
+      if conf.hermes_lite2_enable:
+        self.tx_inhibit = QS.get_params('quisk_tx_inhibit')
+      else:
+        self.tx_inhibit = 0
+      if self.tx_inhibit != self.old_tx_inhibit:
+        self.old_tx_inhibit = self.tx_inhibit
+        self.graph.display.Refresh()
+        self.waterfall.pane1.display.Refresh()
       msg = QS.GetQuiskPrintf()
       if msg:
         print(msg, end='')

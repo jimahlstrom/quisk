@@ -372,7 +372,7 @@ static void process_alc(complex double * cSamples, int count, struct alc * pt, r
 
 static int tx_filter(complex double * filtered, int count)
 {	// Input samples are creal(filtered), output is filtered.  The input rate must be 8000 or 48000 sps.
-	int i, is_ssb;
+	int i, is_ssb, mic_interp;
 	int sample_rate = 8000;
 	double dsample, dtmp, magn;
 	complex double csample;
@@ -423,9 +423,10 @@ static int tx_filter(complex double * filtered, int count)
 		}
 		return 0;
 	}
+	mic_interp = MIC_OUT_RATE / sample_rate;
 	// check size of dsamples[] and csamples[] buffer
 	if (count > samples_size) {
-		samples_size = count * 2;
+		samples_size = count * 2 * mic_interp;
 		if (dsamples)
 			free(dsamples);
 		if (csamples)
@@ -541,8 +542,8 @@ static int tx_filter(complex double * filtered, int count)
 		// remove clipping distortion
 		count = quisk_cDecimate(csamples, count, &cfiltAudio3, 1);
 		// Interpolate up to 48000
-		if (MIC_OUT_RATE != sample_rate)
-			count = quisk_cInterpolate(csamples, count, &cfiltInterp, MIC_OUT_RATE / sample_rate);
+		if (mic_interp != 1)
+			count = quisk_cInterpolate(csamples, count, &cfiltInterp, mic_interp);
 		// convert back to 16 bits
 		for (i = 0; i < count; i++) {
 			filtered[i] = csamples[i] * CLIP16;
@@ -573,8 +574,8 @@ static int tx_filter(complex double * filtered, int count)
 		// remove clipping distortion
 		count = quisk_dFilter(dsamples, count, &dfiltAudio3);
 		// Interpolate up to 48000
-		if (MIC_OUT_RATE != sample_rate)
-			count = quisk_dInterpolate(dsamples, count, &dfiltInterp, MIC_OUT_RATE / sample_rate);
+		if (mic_interp != 1)
+			count = quisk_dInterpolate(dsamples, count, &dfiltInterp, mic_interp);
 		// convert back to 16 bits
 		for (i = 0; i < count; i++) {
 			filtered[i] = dsamples[i] * CLIP16;

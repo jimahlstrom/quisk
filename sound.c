@@ -85,7 +85,7 @@ char * sound_format_names[4] = {"Int32", "Int16", "Float32", "Int24"} ;
 static struct wav_file file_rec_audio, file_rec_samples, file_rec_mic;
 static int close_file_rec;
 
-static double digital_output_level = 0.7;
+double digital_output_level = 0.7;
 static int dc_remove_bw=100;			// bandwidth of DC removal filter
 
 static ty_sample_start pt_sample_start;

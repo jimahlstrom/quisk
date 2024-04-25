@@ -320,6 +320,7 @@ extern int quisk_start_cw_delay;		// milliseconds to delay output on serial or M
 extern int quisk_start_ssb_delay;		// milliseconds to discard output for all modes except CW
 extern struct sound_dev * quiskPlaybackDevices[];	// array of Playback sound devices
 extern int quisk_close_file_play;
+extern double digital_output_level;
 
 extern PyObject * quisk_set_spot_level(PyObject * , PyObject *);
 extern PyObject * quisk_get_tx_filter(PyObject * , PyObject *);

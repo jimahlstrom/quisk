@@ -1470,22 +1470,29 @@ remember the settings.
 <br>
 
 <br>
-If you don't have PulseAudio or don't want to use it, you can use the ALSA loopback device.
-The ALSA loopback device works the same way as the Windows VAC. First
-create the loopback device with the command "modprobe snd-aloop" (you
-will need to be root). You can create the loopback device
-when the system starts, but the way to do that depends on your version of
-Linux. I added snd-aloop to /etc/modules.  You could put the modprobe command in /etc/rc.local instead.
+If your digital program only uses Alsa devices or you don't want to use PulseAudio,
+you can use the ALSA loopback device.
+It works the same way as the Windows VAC. First create the loopback device with this command:
+<pre>
+sudo modprobe snd-aloop index=19
+</pre>
+The "index" is the card number, and it is best to use a number higher than your regular cards.
+The loopback device will be gone on the next restart.
+You can create the loopback device every time the system starts, but the way to do that depends on your version of Linux.
+You could add this line to /etc/modprobe.d/alsa-base.conf:
+<pre>
+options snd-aloop index=19
+</pre>
+Or you could add snd-aloop to /etc/modules or put the modprobe command in /etc/rc.local instead.
 Restart Linux. Now you can enter "cat /proc/asound/cards" to
-print out your sound cards, and you should see a "Loopback" card
-listed. The cards are also shown on the Quisk Sound
-screen. The Loopback card has one side that connects to Quisk and
+print out your sound cards, and you should see a "Loopback" card listed.
+The Loopback card has one side that connects to Quisk and
 another side that connects to your digital program. For the Quisk
-side connect both Digital Input and Digital Output to Loopback,0.
+side connect both Digital Input and Digital Output to the Loopback at hw:19,0.
 Note that the Loopback card is full duplex, and handles both
 input and output. There are actually eight loopbacks created at once,
 but we are only using subdevice 0. For the digital program side, set the input and
-output to "Loopback,1".
+output to the Loopback at hw:19,1.
 Your audio is now connected and you
 should be able to receive digital signals. Be sure to test your
 transmit signal off the air. You may need to reduce power to

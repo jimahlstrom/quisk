@@ -473,6 +473,13 @@ hermes_iob_rxin = 'J10 available'
 #hermes_iob_rxin = 'HL2 Rx to J9'
 #hermes_iob_rxin = 'Use J9 and J10'
 
+## hermes_lite2_enable			Hermes Lite2 protocol, boolean
+# This turns on some of the protocol extensions for the Hermes Lite2 that are not part
+# of the official Hermes Protocol 1. Currently this only enables Tx Inhibit (CN8).
+# Changes are immediate (no need to restart).
+hermes_lite2_enable = True
+#hermes_lite2_enable = False
+
 
 # These are known power meter calibration tables. This table is not present in the JSON settings file.
 power_meter_std_calibrations = {}

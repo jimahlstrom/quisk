@@ -1,3 +1,14 @@
+Quisk Version 4.2.32  April 2024
+================================
+I found and fixed a bug in the microphone filters that can result in a buffer overrun. You should update Quisk.
+
+Some Linux digital programs can not use the usual Quisk Pulse loopback device and must use an
+Alsa loopback. I added more documentation for Alsa loopbacks, added more information on the Sound
+screen and I changed the default Alsa sample size to 16 bit.
+
+Quisk now responds to the Hermes Lite2 Tx inhibit input by displaying a message and extinguishing the "Tx" light.
+There is a new item "Hermes Lite2 protocol" on the Hardware screen to control this behavior.
+
 Quisk Version 4.2.31  March 2024
 ================================
 The "Tune" item was missing from the Midi menus. I fixed it but I didn't test it because I did

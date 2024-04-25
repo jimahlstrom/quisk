@@ -495,8 +495,37 @@ static snd_pcm_format_t check_formats(struct sound_dev * dev, snd_pcm_hw_params_
 {
 	snd_pcm_format_t format = SND_PCM_FORMAT_UNKNOWN;
 	dev->sample_bytes = 0;
-
+#if 0
+	char * card_name;
+	int card;
+	snd_pcm_info_t * pcm_info;
+	printf("driver %s\n", snd_ctl_card_info_get_driver(info));
+	int loopback = 0;
+	if (snd_pcm_info_malloc(&pcm_info) == 0) {
+		if (snd_pcm_info (dev->handle, pcm_info) == 0) {
+			card = snd_pcm_info_get_card (pcm_info);
+			if (card >= 0) {
+				if (snd_card_get_name(card, &card_name) == 0) {
+					if (strcmp(card_name, "Loopback") == 0)
+						loopback = 1;
+					printf("name %s\n", card_name);
+					free(card_name);
+				}
+			}
+		}
+		snd_pcm_info_free(pcm_info);
+	}
+#endif
 	strMcpy (dev->msg1, "Available formats: ", QUISK_SC_SIZE);
+	if (snd_pcm_hw_params_test_format (dev->handle, hware, SND_PCM_FORMAT_S16) == 0) {
+		if (!dev->sample_bytes) {
+			strncat(dev->msg1, "*", QUISK_SC_SIZE);
+			dev->sample_bytes = 2;
+			dev->sound_format = Int16;
+			format = SND_PCM_FORMAT_S16;
+		}
+		strncat(dev->msg1, "S16 ", QUISK_SC_SIZE);
+	}
 	if (snd_pcm_hw_params_test_format (dev->handle, hware, SND_PCM_FORMAT_S32) == 0) {
 		if (!dev->sample_bytes) {
 			strncat(dev->msg1, "*", QUISK_SC_SIZE);
@@ -514,15 +543,6 @@ static snd_pcm_format_t check_formats(struct sound_dev * dev, snd_pcm_hw_params_
 	}
 	if (snd_pcm_hw_params_test_format (dev->handle, hware, SND_PCM_FORMAT_U24) == 0) {
 		strncat(dev->msg1, "U24 ", QUISK_SC_SIZE);
-	}
-	if (snd_pcm_hw_params_test_format (dev->handle, hware, SND_PCM_FORMAT_S16) == 0) {
-		if (!dev->sample_bytes) {
-			strncat(dev->msg1, "*", QUISK_SC_SIZE);
-			dev->sample_bytes = 2;
-			dev->sound_format = Int16;
-			format = SND_PCM_FORMAT_S16;
-		}
-		strncat(dev->msg1, "S16 ", QUISK_SC_SIZE);
 	}
 	if (snd_pcm_hw_params_test_format (dev->handle, hware, SND_PCM_FORMAT_S24_3LE) == 0) {
 		if (!dev->sample_bytes) {
