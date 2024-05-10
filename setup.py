@@ -7,7 +7,7 @@ import os
 # You must define the version here.  A title string including
 # the version will be written to __init__.py and read by quisk.py.
 
-Version = '4.2.32'
+Version = '4.2.33'
 
 fp = open("__init__.py", "w")	# write title string
 fp.write("#Quisk version %s\n" % Version)

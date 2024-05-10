@@ -1,3 +1,10 @@
+Quisk Version 4.2.33  May 2024
+==============================
+Added the get_level Hamlib command "l STRENGTH". It returns the S-meter reading. I finally found some Hamlib
+documentation, often not an easy task.  The return value of STRENGTH is in dB with zero dB equal to S9.
+There are 6 dB per S-unit. So a STRENGTH of 4 is 4dB over S9, and -6, -12, -18 is S8, S7, S6. I also added
+the corresponding FlexRadio command ZZSM.
+
 Quisk Version 4.2.32  April 2024
 ================================
 I found and fixed a bug in the microphone filters that can result in a buffer overrun. You should update Quisk.

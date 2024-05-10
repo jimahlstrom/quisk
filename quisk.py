@@ -658,6 +658,16 @@ class HamlibHandlerSerial:
       self.app.pttButton.SetValue(0, True)
     else:
       self.Error(cmd, data)
+  def ZZSM(self, cmd, data, length):	# return the S-meter value in dB * 2; 0 to 260
+    if length == 0:			# 0 to 260 is -140 to -10 dB; S9 == -73 dB == 134; dB = ZZSM / 2 - 140
+      i = round((self.app.hamlib_strength + 67) * 2)
+      if i < 0:
+        i = 0
+      elif i > 260:
+        i = 260
+      self.Write('%s%03d;' % (cmd, i))
+    else:
+      self.Error(cmd, data)
   def ZZSP(self, cmd, data, length):	# the split status
     if length == 0:
       if self.app.split_rxtx:
@@ -1151,7 +1161,7 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
   def GetLevel(self):
     name = self.GetParamName()
     if name == '?':	# send back supported parameters
-      self.Reply2('AGC AF', 0)
+      self.Reply2('AGC AF STRENGTH', 0)
     elif name == 'AGC':
       if self.app.BtnAGC.GetValue():
         self.Reply2(4, 0)
@@ -1160,6 +1170,9 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     elif name == 'AF':
       x = self.app.audio_volume	# audio_volume is 0 to 1.000
       self.Reply2("%.5f" % x, 0)
+    elif name == 'STRENGTH':
+      i = round(self.app.hamlib_strength)
+      self.Reply2(i, 0)
     else:
       self.ErrParam()
   def SetLevel(self):
@@ -3565,6 +3578,7 @@ class App(wx.App):
     self.smeter_avg_seconds = 1.0	# seconds for S-meter average
     self.smeter_sunits = -87.0
     self.smeter_usage = "smeter"	# specify use of s-meter display
+    self.hamlib_strength = 0.0;
     self.timer = time.time()		# A seconds clock
     self.heart_time0 = self.timer	# timer to call HeartBeat at intervals
     self.save_time0 = self.timer
@@ -5043,6 +5057,7 @@ class App(wx.App):
     self.smeter_sunits_time0 = self.timer
     s = self.smeter_sunits / 6.0	# change to S units; 6db per S unit
     s += Hardware.correct_smeter	# S-meter correction for the gain, band, etc.
+    self.hamlib_strength = (s - 9.0) * 6.0	# convert to dB; 0 dB is S9
     if s < 0:
       s = 0
     if s >= 9.5:
