@@ -2103,6 +2103,26 @@ RxOnly	= '#AAAAAA'
 # Colors start at the indicated frequency and continue until the
 # next frequency.  The special color "None" turns off color.
 #
+BandPlanColors = [	# Display name and corresponding color
+  ['CW, General',	CW],
+  ['CW, Extra',		eCW],
+  ['Phone, General',	Phone],
+  ['Phone, Extra',	ePhone],
+  ['AM',		AM],
+  ['Data',		Data],
+  ['DxData',		DxData],
+  ['RTTY',		RTTY],
+  ['SSTV',		SSTV],
+  ['Packet',		Packet],
+  ['Beacons',		Beacons],
+  ['Satellite',		Satellite],
+  ['Repeater out',	Repeater],
+  ['Repeater in',	RepInput],
+  ['Simplex',		Simplex],
+  ['Rx only',		RxOnly],
+  ['Special',		Special],
+  ['Other',		Other]
+]
 
 
 

@@ -1,3 +1,11 @@
+Quisk Version 4.2.34  May 2024
+==============================
+For the Hermes-Lite2 the inhibit Tx function (CN8) now releases the Spot button.
+
+Quisk displays the band plan below the X-axis as colored bars, and there are eighteen possible colors.
+If you hover the mouse over a bar, Quisk now displays the name of the mode. Recall that there is a dialog
+box so you can set the band plan to what you want.
+ 
 Quisk Version 4.2.33  May 2024
 ==============================
 Added the get_level Hamlib command "l STRENGTH". It returns the S-meter reading. I finally found some Hamlib

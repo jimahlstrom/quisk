@@ -3874,6 +3874,10 @@ static int read_rx_udp17(complex double * cSamples0)	// Read samples from UDP
 	fft_data * ptFFT;
 	fd_set fds;
 	static int block_number=0;
+	static complex double dc_average = 0;		// Average DC component in samples
+	static complex double dc_sum = 0;
+	static int dc_count = 0;
+	static time_t time0 = 0;
 	// Data from the receiver is little-endian
 
 	if ( ! rx_udp_gain_correct) {	// correct for second stage CIC decimation JIM JIM
@@ -3979,6 +3983,16 @@ static int read_rx_udp17(complex double * cSamples0)	// Read samples from UDP
 			if (xr & 0x100) {		// channel 1
 				if (quisk_invert_spectrum)		// Invert spectrum
 					sample = conj(sample);
+				// correct the DC level
+				dc_sum += sample;
+				dc_count++;
+				sample -= dc_average;
+				if (dc_count >= 48000 && time(NULL) != time0) {
+					time0 = time(NULL);
+					dc_average = dc_sum / dc_count;
+					dc_sum = dc_count = 0;
+					//printf ("New DC average %.0lf\n", cabs(dc_average));
+				}
 				// Put samples into the fft input array.
 				ptFFT = fft_data_array + fft_data_index;
 				if ( ! (xi & 0x100)) {		// zero marker for start of first block

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# All QUISK software is Copyright (C) 2006-2021 by James C. Ahlstrom.
+# All QUISK software is Copyright (C) 2006-2024 by James C. Ahlstrom.
 # This free software is licensed for use under the GNU General Public
 # License (GPL), see http://www.opensource.org.
 # Note that there is NO WARRANTY AT ALL.  USE AT YOUR OWN RISK!!
@@ -1892,6 +1892,12 @@ class GraphScreen(wx.Window):
     self.Bind(wx.EVT_LEFT_UP, self.OnLeftUp)
     self.Bind(wx.EVT_MOTION, self.OnMotion)
     self.Bind(wx.EVT_MOUSEWHEEL, self.OnWheel)
+    # handle bandplan info
+    self.bandplanWindow = wx.PopupWindow (parent)
+    self.bandplanInfo = wx.TextCtrl(self.bandplanWindow, style=wx.TE_READONLY)
+    self.bandplanInfo.SetFont(wx.Font(conf.status_font_size, wx.FONTFAMILY_SWISS, wx.NORMAL,
+        wx.FONTWEIGHT_NORMAL, False, conf.quisk_typeface))
+    self.bandplanWindow.Hide(); 
     self.MakeDisplay()
   def MakeDisplay(self):
     self.display = GraphDisplay(self, self.originX, 0, self.graph_width, 5, self.chary)
@@ -2243,6 +2249,44 @@ class GraphScreen(wx.Window):
           self.ChangeHwFrequency(self.txFreq, self.VFO, 'MouseMotion', event=event, rx_freq=freq2)
         else:					# Mouse motion changes the transmit frequency
           self.ChangeHwFrequency(self.txFreq + freq, self.VFO, 'MouseMotion', event=event)
+    else:
+      mouse_x, mouse_y = self.GetMousePosition(event)
+      if not self.in_splitter and self.originY <= mouse_y <= self.originY + self.tick and (
+            self.originX <= mouse_x <= self.originX + self.graph_width):
+        #sample_rate = int(self.sample_rate * self.zoom)	# Measure the frequency
+        #freq = float(mouse_x - self.x0) * sample_rate / self.data_width + self.zoom_deltaf + self.VFO
+        #freq = int(freq)
+        #color = None
+        #for start_freq, start_color in application.BandPlan:
+        #  if start_freq >= freq:
+        #    break
+        #  color = start_color
+        dc = wx.ClientDC(self)	# Read the pixel at the mouse position
+        pixel = dc.GetPixel(mouse_x, mouse_y)
+        pixel = "#%02X%02X%02X" % (pixel[0], pixel[1], pixel[2])
+        txt = application.BandPlanC2T.get(pixel, '')
+        if pixel == "#000000":
+          pass
+        elif txt:
+          self.bandplanInfo.Clear()
+          self.bandplanInfo.write(txt)
+          width, height = self.bandplanInfo.GetTextExtent(txt)
+          width += self.bandplanInfo.GetCharWidth() * 2
+          height += self.bandplanInfo.GetCharHeight() // 2
+          self.bandplanInfo.SetSize(wx.Size(width, height))
+          self.bandplanWindow.SetClientSize((width, height))
+          rect = self.GetScreenRect()
+          if mouse_x > self.originX + self.graph_width * 3 // 4:
+            self.bandplanWindow.Move(mouse_x + rect.GetX() - width, mouse_y + rect.GetY() - height * 12 // 10)
+          else:
+            self.bandplanWindow.Move(mouse_x + rect.GetX(), mouse_y + rect.GetY() - height * 12 // 10)
+          if not self.bandplanWindow.IsShown():
+            self.bandplanWindow.Show()
+        else:
+          if self.bandplanWindow.IsShown():
+            self.bandplanWindow.Hide()
+      elif self.bandplanWindow.IsShown():
+        self.bandplanWindow.Hide()
   def OnWheel(self, event):
     if conf.freq_spacing:
       wm = conf.freq_spacing
@@ -6534,6 +6578,8 @@ class App(wx.App):
         self.old_tx_inhibit = self.tx_inhibit
         self.graph.display.Refresh()
         self.waterfall.pane1.display.Refresh()
+      if self.tx_inhibit and self.spotButton.GetValue():
+        self.spotButton.SetValue(0, True)
       msg = QS.GetQuiskPrintf()
       if msg:
         print(msg, end='')

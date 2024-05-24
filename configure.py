@@ -170,12 +170,16 @@ class Configuration:
         radio_dict["Hermes_BandDictTx"] = {}
   def UpdateGlobals(self):
     self.RadioName = Settings[1]
+    application.BandPlanC2T = {}
     if self.RadioName == "ConfigFileRadio":
       application.BandPlan = conf.BandPlan
+      for mode, color in conf.BandPlanColors:
+        application.BandPlanC2T[color] = mode
     elif "BandPlanColors" in Settings[4] and "BandPlan" in Settings[4]:
       mode_dict = {"End":None}
       for mode, color in Settings[4]["BandPlanColors"]:
         mode_dict[mode] = color
+        application.BandPlanC2T[color] = mode
       plan = []
       for freq, mode in Settings[4]["BandPlan"]:
         freq = int(float(freq) * 1E6 + 0.1)
@@ -188,6 +192,8 @@ class Configuration:
       application.BandPlan = plan
     else:
       application.BandPlan = conf.BandPlan
+      for mode, color in conf.BandPlanColors:
+        application.BandPlanC2T[color] = mode
     if "MidiNoteDict" not in Settings[4]:
       Settings[4]["MidiNoteDict"] = {}
       self.settings_changed = True
@@ -3984,28 +3990,7 @@ class BandPlanDlg(wx.Dialog, ControlMixin):
     if "BandPlanColors" in Settings[4] and "BandPlan" in Settings[4]:
       colors = Settings[4]["BandPlanColors"]
     else:
-      Get = conf.__dict__.get	# Get colors from the user's config file, if any.
-      dflt = "#555555"
-      colors = [
-        ['CW, General',		Get("CW",	dflt)],
-        ['CW, Extra',		Get("eCW",	dflt)],
-        ['Phone, General',	Get("Phone",	dflt)],
-        ['Phone, Extra',	Get("ePhone",	dflt)],
-        ['AM',			Get("AM",	dflt)],
-        ['Data',		Get("Data",	dflt)],
-        ['DxData',		Get("DxData",	dflt)],
-        ['RTTY',		Get("RTTY",	dflt)],
-        ['SSTV',		Get("SSTV",	dflt)],
-        ['Packet',		Get("Packet",	dflt)],
-        ['Beacons',		Get("Beacons",	dflt)],
-        ['Satellite',		Get("Satellite",dflt)],
-        ['Repeater out',	Get("Repeater",	dflt)],
-        ['Repeater in',		Get("RepInput",	dflt)],
-        ['Simplex',		Get("Simplex",	dflt)],
-        ['Rx only',		Get("RxOnly",	dflt)],
-        ['Special',		Get("Special",	dflt)],
-        ['Other',		Get("Other",	dflt)]
-      ]
+      colors = conf.BandPlanColors
     self.modes = []
     self.color_dict = {None:"End"}
     self.mode_dict = {"End":None}
@@ -4212,6 +4197,9 @@ The mode begins at the start frequency and ends at the next frequency.'
       plan.append([hertz, color])
     Settings[4]["BandPlan"] = freq_mode
     application.BandPlan = plan
+    application.BandPlanC2T = {}
+    for mode, color in mode_color:
+      application.BandPlanC2T[color] = mode
     local_conf.settings_changed = True
     self.EndModal(wx.ID_OK)
   def OnCancel(self, event):
