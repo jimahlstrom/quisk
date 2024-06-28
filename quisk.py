@@ -3628,7 +3628,7 @@ class App(wx.App):
     self.save_time0 = self.timer
     self.smeter_db_time0 = self.timer
     self.smeter_sunits_time0 = self.timer
-    self.fewsec_time0 = self.timer
+    self.slowheart_time0 = self.timer
     self.multi_rx_index = 0
     self.multi_rx_timer = self.timer
     self.band_up_down = 0			# Are band Up/Down buttons in use?
@@ -3784,6 +3784,7 @@ class App(wx.App):
         pass #traceback.print_exc()
     if "Version" not in self.bandAmplPhase:
       self.FixAmplPhase()		# Convert to new format Oct 2020
+    self.FixAmplPhase2()		# New logic June 2024
     if Hardware.VarDecimGetChoices():	# Hardware can change the decimation.
       self.sample_rate = Hardware.VarDecimSet()	# Get the sample rate.
       self.vardecim_set = self.sample_rate
@@ -4450,6 +4451,25 @@ class App(wx.App):
       except:
         traceback.print_exc()
         self.bandAmplPhase[band] = {}
+  def FixAmplPhase2(self):	# New definition of phase
+    if self.bandAmplPhase["Version"]["rx"] == [1]:
+      return
+    degrad = 360.0 / 2 / math.pi
+    for band in self.bandAmplPhase:
+      if band == "Version":
+        continue
+      for rx_tx in self.bandAmplPhase[band]:
+        if rx_tx in ('rx', 'tx'):
+          data = self.bandAmplPhase[band][rx_tx]
+          for item in data:
+            vfo = item[0]
+            lst_framph = item[1]
+            for framph in lst_framph:
+              freq, am, ph = framph
+              p = math.atan(math.tan(ph / degrad) / (1.0 + am))
+              #print ("%5s %3s %8d %8d %8.4f %8.3f %8.3f" % (band, rx_tx, vfo, freq, am, ph, p * degrad))
+              framph[2] = p * degrad
+    self.bandAmplPhase["Version"]["rx"] = [1]
   def ImmediateChange(self, name):
     if name == "pulse_audio_verbose_output":
       value = getattr(conf, name)
@@ -5883,10 +5903,8 @@ class App(wx.App):
       self.graph.SetVFO(vfo)
       self.waterfall.SetVFO(vfo)
       self.station_screen.Refresh()
-      if self.w_phase:
-        self.w_phase.Redraw()
     if change:
-      if conf.name_of_sound_capt or conf.name_of_mic_play:
+      if (conf.name_of_sound_capt or conf.name_of_mic_play) and QS.get_params("softrock_correct_active") == 0:
         ampl, phase = self.GetAmplPhase('rx')
         QS.set_ampl_phase(ampl, phase, 0)
         ampl, phase = self.GetAmplPhase('tx')
@@ -6598,9 +6616,10 @@ class App(wx.App):
           self.ChangeDisplayFrequency(tune - vfo, vfo)
         self.FldigiPoll()
         self.HamlibPoll()
-      #if self.timer - self.fewsec_time0 > 3.0:
-      #  self.fewsec_time0 = self.timer
-      #  print ('fewswc')
+      if self.timer - self.slowheart_time0 > 0.5:
+        self.slowheart_time0 = self.timer
+        if self.w_phase:
+          self.w_phase.SlowHeartBeat()
       if self.timer - self.save_time0 > 20.0:
         self.save_time0 = self.timer
         if self.CheckState():

@@ -86,6 +86,7 @@ static struct wav_file file_rec_audio, file_rec_samples, file_rec_mic;
 static int close_file_rec;
 
 double digital_output_level = 0.7;
+static double file_play_level = 1.0;
 static int dc_remove_bw=100;			// bandwidth of DC removal filter
 
 static ty_sample_start pt_sample_start;
@@ -175,9 +176,10 @@ static void correct_sample (struct sound_dev * dev, complex double * cSamples, i
 		for (i = 0; i < nSamples; i++) {
 			re = creal(cSamples[i]);
 			im = cimag(cSamples[i]);
-			re = re * dev->AmPhAAAA;
-			im = re * dev->AmPhCCCC + im * dev->AmPhDDDD;
-			cSamples[i] = re + I * im;
+			cSamples[i] = re * dev->AmPhAAAA + I * (re * dev->AmPhCCCC + im * dev->AmPhDDDD);
+			//re = re * dev->AmPhAAAA;
+			//im = re * dev->AmPhCCCC + im * dev->AmPhDDDD;
+			//cSamples[i] = re + I * im;
 		}
 	}
 }
@@ -730,8 +732,11 @@ void * quisk_make_txIQ(struct sound_dev * dev, int rewind)
 	}
 	// amplitude and phase corrections
 	if (dev->doAmplPhase) {
-		dSamp0 = dSamp0 * dev->AmPhAAAA;
-		dSamp1 = dSamp0 * dev->AmPhCCCC + dSamp1 * dev->AmPhDDDD;
+		//dSamp0 = dSamp0 * dev->AmPhAAAA;
+		//dSamp1 = dSamp0 * dev->AmPhCCCC + dSamp1 * dev->AmPhDDDD;
+		d = dSamp0;
+		dSamp0 = d * dev->AmPhAAAA;
+		dSamp1 = d * dev->AmPhCCCC + dSamp1 * dev->AmPhDDDD;
 	}
 	switch (dev->sound_format) {
 	case Int16:
@@ -836,6 +841,34 @@ int quisk_play_sidetone(struct sound_dev * dev)
 	return 0;
 }
 
+#if 0
+static void testing(double complex * cSamples, int nSamples)
+{
+	int i;
+	static double AvgR=0, AvgQ=0, AvgRQ=0;
+	double d, p, Gain, Phase;
+	time_t tim;
+	static time_t time0;
+
+	for (i = 0; i < nSamples; i++) {
+		d = creal(cSamples[i]);
+		AvgR += d * d;
+		p = cimag(cSamples[i]);
+		AvgQ += p * p;
+		AvgRQ += d * p;
+	}
+	tim = time(NULL);
+	if (tim - time0 >= 2) {
+		time0 = tim;
+		Gain = sqrt(AvgR / AvgQ);
+		Phase = AvgRQ / AvgQ / Gain;
+		Phase = asin(Phase);
+		printf("Time domain Gain %10.7lf, Phase %10.7lf, %10.7lf degrees\n", Gain, Phase, Phase * 57.29578);
+		AvgR = AvgQ = AvgRQ = 0;
+	}
+}
+#endif
+
 int quisk_read_sound(void)	// Called from sound thread
 {  // called in an infinite loop by the main program
 	int i, nSamples, mic_count, mic_interp, retval, is_cw, mic_sample_rate;
@@ -913,9 +946,10 @@ int quisk_read_sound(void)	// Called from sound thread
 	//QuiskPrintTime("quisk_read_sound end", 0);
 		if (Capture.channel_Delay >= 0)	// delay the I or Q channel by one sample
 			delay_sample(&Capture, (double *)cSamples, nSamples);
+		DCremove(cSamples, nSamples, quisk_sound_state.sample_rate, key_state);
+		//testing(cSamples, nSamples);
 		if (Capture.doAmplPhase)		// amplitude and phase corrections
 			correct_sample(&Capture, cSamples, nSamples);
-		DCremove(cSamples, nSamples, quisk_sound_state.sample_rate, key_state);
 		if (nSamples <= 0)
 			QuiskSleepMicrosec(2000);
 #if DEBUG_IO > 1
@@ -969,7 +1003,7 @@ int quisk_read_sound(void)	// Called from sound thread
 	if (quisk_record_state == TMP_PLAY_SPKR_MIC)
 		quisk_tmp_playback(cSamples, nSamples, 1.0);		// replace radio sound
 	else if (quisk_record_state == FILE_PLAY_SPKR_MIC)
-		quisk_file_playback(cSamples, nSamples, 1.0);		// replace radio sound
+		quisk_file_playback(cSamples, nSamples, file_play_level);		// replace radio sound
 	// Play the demodulated audio
 #if DEBUG_MIC != 2
 	if ( ! quisk_play_sidetone(&quisk_Playback))	// play sidetone
@@ -1401,6 +1435,8 @@ void quisk_open_sound(void)	// Called from GUI thread
 	RawSamplePlayback.channel_I = 0;
 	RawSamplePlayback.channel_Q = 1;
 
+	file_play_level = QuiskGetConfigDouble("file_play_level", 1.0);
+
 	set_num_channels (&Capture);
 	set_num_channels (&quisk_Playback);
 	set_num_channels (&MicCapture);
@@ -1565,10 +1601,10 @@ PyObject * quisk_micplay_channels(PyObject * self, PyObject * args)	// Called fr
 PyObject * quisk_set_sparams(PyObject * self, PyObject * args, PyObject * keywds)
 {  /* Call with keyword arguments ONLY; change local parameters */
 	static char * kwlist[] = {"dc_remove_bw", "digital_output_level", "remote_control_slave", "remote_control_head",
-		NULL} ;
+		"file_play_level", NULL} ;
 
-	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|idii", kwlist, &dc_remove_bw, &digital_output_level,
-	&remote_control_slave, &remote_control_head))
+	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|idiid", kwlist, &dc_remove_bw, &digital_output_level,
+	&remote_control_slave, &remote_control_head, &file_play_level))
 		return NULL;
 	Py_INCREF (Py_None);
 	return Py_None;

@@ -7,7 +7,7 @@ import os
 # You must define the version here.  A title string including
 # the version will be written to __init__.py and read by quisk.py.
 
-Version = '4.2.34'
+Version = '4.2.35'
 
 fp = open("__init__.py", "w")	# write title string
 fp.write("#Quisk version %s\n" % Version)
@@ -39,8 +39,10 @@ if sys.platform == "darwin":	# Build for Macintosh
   libraries = ['portaudio', 'fftw3', 'm']
   if os.path.isdir('/opt/local/include'):	# MacPorts
     base_dir = '/opt/local'
-  elif os.path.isdir('/usr/local/include'):	# HomeBrew
+  elif os.path.isdir('/usr/local/include'):	# HomeBrew on macOS Intel 
     base_dir = '/usr/local'
+  elif os.path.isdir('/opt/homebrew/include'): # HomeBrew on Apple Silicon
+    base_dir = '/opt/homebrew'
   else:						# Regular build?
     base_dir = '/usr'
   if os.path.isfile(base_dir + "/include/pulse/pulseaudio.h"):

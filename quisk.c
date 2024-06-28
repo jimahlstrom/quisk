@@ -152,6 +152,10 @@ static int quisk_use_sidetone;		// is there a sidetone volume control?
 static int hl2_txbuf_errors;		// errors in the Hermes-Lite2 Tx buffer
 static int hl2_txbuf_state;		// state machine for errors in the Hermes-Lite2 Tx buffer
 static int freedv_monitor;		// pass the Freedv audio to the speakers instead of to the demodulator
+static int softrock_correct_freq;	// gain and phase corrections for SoftRock
+static double softrock_correct_gain;
+static double softrock_correct_phase;
+static int softrock_correct_active;	// 0 No correction adjustment; 1 Manual adjustment; 2 Calculate Rx corrections
 
 static complex double PySampleBuf[SAMP_BUFFER_SIZE];	// buffer for samples returned from Python
 static int PySampleCount;				// count of samples in buffer
@@ -3157,6 +3161,8 @@ static PyObject * get_params(PyObject * self, PyObject * args)
 		return PyInt_FromLong(quisk_serial_ptt);
 	if (strcmp(name, "hl2_txbuf_errors") == 0)
 		return PyInt_FromLong(hl2_txbuf_errors);
+	if (strcmp(name, "softrock_correct_active") == 0)
+		return PyInt_FromLong((long)softrock_correct_active);
 	if (strcmp(name, "quisk_tx_inhibit") == 0)
 		return PyInt_FromLong((long)quisk_tx_inhibit);
 	Py_INCREF (Py_None);
@@ -4260,6 +4266,13 @@ static PyObject * change_scan(PyObject * self, PyObject * args)	// Called from G
 	return Py_None;
 }
 
+static PyObject * softrock_corrections(PyObject * self, PyObject * args)	// Called from GUI thread
+{
+	if (!PyArg_ParseTuple (args, "i", &softrock_correct_active))
+		return NULL;
+	return Py_BuildValue("idd", softrock_correct_freq, softrock_correct_gain, softrock_correct_phase);
+}
+
 static PyObject * change_rates(PyObject * self, PyObject * args)	// Called from GUI thread
 {	// Change to new sample rates
 
@@ -5047,6 +5060,79 @@ static PyObject * get_bandscope(PyObject * self, PyObject * args)	// Called by t
 	return Py_None;
 }
 
+static void softrock_correct_fft(fft_data * ptFft, int fixit)
+{ // See i/Q balance in Rocky: https://www.dxatlas.com/Rocky/Advanced.asp
+	double ampl, r1, r2, i1, i2, Zr, Zi, Pwr, Gain, Phase, OutR, OutI, S1R, S1I, S2R, S2I;
+	static double tot_ga=0, tot_ph=0;
+	static int count=0;
+	double maxa = 0;
+	int i, maxi = 0, freq;
+	double complex Z, s1, s2, Hr, Hi, S1, S2;
+	double tim;
+	static double time0 = 0;
+
+	for (i = 0; i < fft_size; i++) {
+		ampl = cabs(ptFft->samples[i]);
+		if (ampl > maxa) {
+			maxa = ampl;
+			maxi = i;
+		}
+	}
+	if (maxi < fft_size / 2)
+		freq = maxi;
+	else
+		freq = maxi - fft_size;
+	freq = freq * fft_sample_rate / fft_size;
+	s1 = ptFft->samples[maxi];
+	s2 = ptFft->samples[fft_size - maxi];
+	Z = s1 * s2;
+	r1 = creal(s1);
+	r2 = creal(s2);
+	i1 = cimag(s1);
+	i2 = cimag(s2);
+	Pwr = r1 * r1 + i1 * i1 + r2 * r2 + i2 * i2;
+	Zr = creal(Z) / Pwr;
+	Zi = cimag(Z) / Pwr;
+	Gain = sqrt((1.0 + 2 * Zr) / (1.0 - 2 * Zr));
+	Phase = asin(Zi * (Gain * Gain + 1.0) / Gain);
+	tot_ga += Gain;
+	tot_ph += Phase;
+	count += 1;
+	tim = QuiskTimeSec();
+	if (tim - time0 >= 0.5) {
+		time0 = tim;
+		softrock_correct_freq = freq;
+		softrock_correct_gain = tot_ga / count;
+		softrock_correct_phase = tot_ph / count;
+		//if (softrock_correct_active)
+		//	printf("Freq domain Gain %10.7lf, Phase %10.7lf, %10.7lf, freq %d\n",
+		//		softrock_correct_gain, softrock_correct_phase, softrock_correct_phase * 57.29578, freq);
+		tot_ga = tot_ph = count = 0;
+	}
+	if (fixit) {
+		Hr = softrock_correct_gain * cos(softrock_correct_phase);
+		Hi = softrock_correct_gain * sin(softrock_correct_phase);
+		for (i = 1; i < fft_size / 2; i++) {
+			S1 = ptFft->samples[fft_size - i];
+			S2 = ptFft->samples[i];
+			S1R = creal(S1);
+			S1I = cimag(S1);
+			S2R = creal(S2);
+			S2I = cimag(S2);
+			OutR = S2R + S1R - (S2I + S1I) * Hi + (S2R - S1R) * Hr;
+			OutI = S2I - S1I + (S2I + S1I) * Hr + (S2R - S1R) * Hi;
+			ptFft->samples[i] = OutR + I * OutI;
+			S1R = creal(S2);
+			S1I = cimag(S2);
+			S2R = creal(S1);
+			S2I = cimag(S1);
+			OutR = S2R + S1R - (S2I + S1I) * Hi + (S2R - S1R) * Hr;
+			OutI = S2I - S1I + (S2I + S1I) * Hr + (S2R - S1R) * Hi;
+			ptFft->samples[fft_size - i] = OutR + I * OutI;
+		}
+	}
+}
+
 static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the GUI thread
 {
 	int i, j, k, m, n, index, ffts, ii, mm, m0, deltam;
@@ -5120,6 +5206,8 @@ static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the G
 		for (i = 0; i < fft_size; i++)		// multiply by window
 			ptFft->samples[i] *= fft_window[i];
 		fftw_execute_dft(quisk_fft_plan, ptFft->samples, ptFft->samples);	// Calculate FFT
+		if (softrock_correct_active == 2)
+			softrock_correct_fft(ptFft, 0);
 		// Create RMS s-meter value at known bandwidth
 		// The pass band is (rx_tune_freq + filter_start_offset) to += bandwidth
 		// d1 is the tune frequency
@@ -5170,6 +5258,9 @@ static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the G
 			//QuiskPrintf(" %d %.4lf At %5d to %5d place %5d to %5d for block %d\n", fft_size, scan_valid, mm, m, ii, i, ptFft->block);
 		}
 		else {
+			// Zero frequency is at index fft_size / 2.
+			// There are fft_size/2 positive frequencies and fft_size/2-1 negative frequencies.
+			// The frequency at index k and (fft_size - k) are equal except for sign.
 			count_fft++;
 			k = 0;
 			for (i = fft_size / 2; i < fft_size; i++)			// Negative frequencies
@@ -5995,6 +6086,7 @@ static PyMethodDef QuiskMethods[] = {
 	{"get_filter_rate", get_filter_rate, METH_VARARGS, "Return the sample rate used for the filters."},
 	{"get_tx_filter", quisk_get_tx_filter, METH_VARARGS, "Return the frequency response of the transmit filter."},
 	{"get_audio_graph", get_audio_graph, METH_VARARGS, "Return a tuple of the audio graph data."},
+	{"softrock_corrections", softrock_corrections, METH_VARARGS, "Control and return SoftRock amplitude and phase corrections."},
 	{"measure_frequency", measure_frequency, METH_VARARGS, "Set the method, return the measured frequency."},
 	{"measure_audio", measure_audio, METH_VARARGS, "Set the method, return the measured audio voltage."},
 	{"get_overrange", get_overrange, METH_VARARGS, "Return the count of overrange (clip) for the ADC."},

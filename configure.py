@@ -1,13 +1,9 @@
-
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
-import sys, wx, wx.lib, os, re, pickle, traceback, json
+import sys, wx, wx.lib, os, re, pickle, traceback, json, copy
 # Quisk will alter quisk_conf_defaults to include the user's config file.
 import quisk_conf_defaults as conf
 import _quisk as QS
 from quisk_widgets import QuiskPushbutton, QuiskCheckbutton, QuiskBitField, SliderBoxH, SliderBoxHH
+from quisk_widgets import FreqFormatter
 from quisk_widgets import wxVersion
 if wxVersion in ('2', '3'):
   import wx.combo as wxcombo
@@ -835,12 +831,10 @@ class QPowerMeterCalibration(wx.Frame):
 
 ## Note: The amplitude/phase adjustments have ideas provided by Andrew Nilsson, VK6JBL.
 ## October 2020: changed to make RxTx frequency and VFO two independent variables.
+## June 2024: Added a Grid control and automatic receive measurement.
 class QAdjustPhase(wx.Frame):
   """Create a window with amplitude and phase adjustment controls"""
-  f_ampl = "Amplitude adjustment %.6f"
-  f_phase = "Phase adjustment degrees %.6f"
   def __init__(self, parent, width, rx_tx):
-    self.width = width
     self.rx_tx = rx_tx		# Must be "rx" or "tx"
     if rx_tx == 'tx':
       self.is_tx = 1
@@ -848,121 +842,231 @@ class QAdjustPhase(wx.Frame):
     else:
       self.is_tx = 0
       t = "Adjust Sound Card Receive Amplitude and Phase"
-    wx.Frame.__init__(self, application.main_frame, -1, t, pos=(50, 100), style=wx.CAPTION)
+    wx.Frame.__init__(self, application.main_frame, -1, t, pos=(50, 100), style=wx.CAPTION|wx.RESIZE_BORDER)
+    self.client_width = application.screen_width * 5 // 10 
+    self.SetClientSize((self.client_width, application.screen_height * 5 // 10))
+    self.new_amplitude = self.new_phase = 0.0
+    self.new_tune = 0
+    self.bandAmplPhase = copy.deepcopy(application.bandAmplPhase)
+    self.new_cell = None
+    self.dirty = False
+    self.manual = True
     self.panel = wx.Panel(self)
     self.MakeControls()
     self.Redraw()
     self.Show()
+    self.Bind(wx.EVT_CLOSE, self.OnBtnExit)
+    QS.softrock_corrections(1)
+    QS.set_ampl_phase(0.0, 0.0, self.is_tx)
+    self.grid.GoToCell(0, 2)
   def MakeControls(self):		# Make controls for phase/amplitude adjustment
     panel = self.panel
-    width = self.width
-    self.old_amplitude, self.old_phase = application.GetAmplPhase(self.rx_tx)
-    self.new_amplitude, self.new_phase = self.old_amplitude, self.old_phase
-    sl_max = width * 4 // 10		# maximum +/- value for slider
+    sizer = wx.BoxSizer(wx.VERTICAL)
+    panel.SetSizer(sizer)
+    sl_max = application.screen_width * 4 // 10		# maximum +/- value for slider
     self.ampl_scale = float(conf.rx_max_amplitude_correct) / sl_max
     self.phase_scale = float(conf.rx_max_phase_correct) / sl_max
-    font = wx.Font(conf.default_font_size, wx.FONTFAMILY_SWISS, wx.NORMAL,
+    main_font = wx.Font(conf.default_font_size, wx.FONTFAMILY_SWISS, wx.NORMAL,
           wx.FONTWEIGHT_NORMAL, False, conf.quisk_typeface)
-    self.SetFont(font)
+    self.SetFont(main_font)
+    panel.SetFont(main_font)
     charx = self.GetCharWidth()
-    self.tab1 = tab1 = charx
     chary = self.GetCharHeight()
-    deltay = chary * 12 // 10
-    y = chary * 3 // 10
-    self.controls = []
-    txt = wx.StaticText(panel, -1, "No data", pos=(tab1, y))
-    self.controls.append(txt)
-    y += txt.GetSize().GetHeight()
-    #y += deltay * 14 // 10
-    self.t_ampl = wx.StaticText(panel, -1, self.f_ampl % self.old_amplitude, pos=(tab1, y))
-    self.controls.append(self.t_ampl)
-    y += deltay
-    fine = wx.StaticText(panel, -1, 'Fine', pos=(tab1, y))
-    self.controls.append(fine)
-    coarse = wx.StaticText(panel, -1, 'Coarse', pos=(tab1, y + deltay))
-    self.controls.append(coarse)
-    tab2 = tab1 + coarse.GetSize().GetWidth() + charx
-    sliderX = width - tab2 - charx
-    self.ampl1 = wx.Slider(panel, -1, 0, -sl_max, sl_max, pos=(tab2, y), size=(sliderX, -1))
-    self.controls.append(self.ampl1)
-    y += deltay
-    self.ampl2 = wx.Slider(panel, -1, 0, -sl_max, sl_max, pos=(tab2, y), size=(sliderX, -1))
-    self.controls.append(self.ampl2)
-    y += deltay * 14 // 10
-    self.PosAmpl(self.old_amplitude)
-    self.t_phase = wx.StaticText(panel, -1, self.f_phase % self.old_phase, pos=(tab1, y))
-    self.controls.append(self.t_phase)
-    y += deltay
-    fine = wx.StaticText(panel, -1, 'Fine', pos=(tab1, y))
-    self.controls.append(fine)
-    coarse = wx.StaticText(panel, -1, 'Coarse', pos=(tab1, y + deltay))
-    self.controls.append(coarse)
-    self.phase1 = wx.Slider(panel, -1, 0, -sl_max, sl_max, pos=(tab2, y), size=(sliderX, -1))
-    self.controls.append(self.phase1)
-    y += deltay
-    self.phase2 = wx.Slider(panel, -1, 0, -sl_max, sl_max, pos=(tab2, y), size=(sliderX, -1))
-    self.controls.append(self.phase2)
-    y += deltay
-    sv = QuiskPushbutton(panel, self.OnBtnSave, 'Save')
-    self.controls.append(sv)
-    dv = QuiskPushbutton(panel, self.OnBtnDestroyVFO, 'Destroy VFO')
-    self.controls.append(dv)
-    ds = QuiskPushbutton(panel, self.OnBtnDestroyALL, 'Destroy ALL')
-    self.controls.append(ds)
-    cn = QuiskPushbutton(panel, self.OnBtnFinished, 'Finished')
-    self.controls.append(cn)
-    hl = QuiskPushbutton(panel, self.OnBtnHelp, 'Help')
-    self.controls.append(hl)
-    w, h = ds.GetSize().Get()
-    sv.SetSize((w, h))
-    cn.SetSize((w, h))
-    hl.SetSize((w, h))
-    y += h * 5 // 10
-    x = (width - w * 5) // 6
-    sv.SetPosition((x, y))
-    dv.SetPosition((x*2 + w, y))
-    ds.SetPosition((x*3 + w*2, y))
-    cn.SetPosition((x*4 + w*3, y))
-    hl.SetPosition((x*5 + w*4, y))
-    sv.SetBackgroundColour('light blue')
-    dv.SetBackgroundColour('light blue')
-    ds.SetBackgroundColour('light blue')
-    cn.SetBackgroundColour('light blue')
-    hl.SetBackgroundColour('light blue')
-    y += h
-    y += h * 4 // 10
-    self.PosPhase(self.old_phase)
-    self.SetClientSize(wx.Size(width, y))
-    self.ampl1.Bind(wx.EVT_SCROLL, self.OnChange)
+    # Create the grid heading and Destroy button
+    self.cell_amph = wx.StaticText(panel, -1, "")
+    font = wx.Font(conf.default_font_size, wx.FONTFAMILY_SWISS, wx.NORMAL,
+          wx.FONTWEIGHT_BOLD, False, conf.quisk_typeface)
+    self.cell_amph.SetFont(font)
+    self.cell_amph.SetLabel("Cell frequency %s, gain %.3f, phase %.3f\u00B0      " % (FreqFormatter(144000000), -1.123, -12.456))
+    dv = wx.lib.buttons.GenButton(panel, label="  Destroy  ")
+    dv.SetBezelWidth(3)
+    dv.SetBackgroundColour("#DDD")
+    dv.Bind(wx.EVT_BUTTON, self.OnBtnDestroy)
+    hbox = wx.BoxSizer(wx.HORIZONTAL)
+    sizer.Add(hbox, flag=wx.BOTTOM|wx.EXPAND, border=chary * 3 // 10)
+    hbox.Add(self.cell_amph, flag=wx.ALL|wx.ALIGN_CENTER_VERTICAL, border=chary // 2)
+    hbox.Add(dv, flag=wx.LEFT|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL, border=charx * 5)
+    # Create the grid
+    self.grid = wx.grid.Grid(panel, style=wx.BORDER_SIMPLE)
+    self.grid.CreateGrid(4, 3)
+    self.grid.HideRowLabels()
+    self.selected_row = 0
+    self.selected_col = 0
+    self.cell_bg_color = self.grid.GetDefaultCellBackgroundColour()
+    self.grid.SetDefaultCellFont(main_font)
+    width, h = self.GetTextExtent("987-24 000")
+    self.grid.SetDefaultColSize(width, True)
+    self.grid.EnableEditing(False)
+    self.grid.SetColLabelValue(0, "Band")
+    self.grid.SetColLabelValue(1, "VFO")
+    self.grid.SetColLabelValue(2, "Tune")
+    self.grid.SetColSize(0, width // 2)
+    self.grid.SetColSize(1, width * 14 // 10)
+    num_tune = (self.client_width - width * 2) // width
+    #print ("num_tune", num_tune)
+    for col in range(3, num_tune + 2):
+      self.grid.AppendCols()
+      self.grid.SetColLabelValue(col, "Tune")
+    #self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.OnGridLeftClick)
+    self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.OnGridSelectCell)
+    gbox = wx.BoxSizer(wx.VERTICAL)
+    sizer.Add(gbox, proportion=1, flag=wx.LEFT|wx.RIGHT|wx.EXPAND, border=charx)
+    gbox.Add(self.grid, proportion=1)
+    # Create the New Cell text, Manual/Measure, AddCell button
+    sbs = wx.StaticBoxSizer(wx.VERTICAL, panel, " New Cell")
+    sizer.Add(sbs, flag=wx.EXPAND|wx.LEFT|wx.TOP|wx.RIGHT|wx.BOTTOM, border=charx*3)
+    self.add_cell_text = wx.StaticText(panel, -1, "Band")
+    self.add_cell_text.SetFont(main_font)
+    sbs.Add(self.add_cell_text, flag=wx.LEFT|wx.TOP, border=charx)
+    box0 = wx.BoxSizer(wx.HORIZONTAL)
+    sbs.Add(1, charx)
+    sbs.Add(box0, flag=wx.EXPAND)
+    rb_manual = wx.RadioButton(panel, -1, "Manual adjustment", style=wx.RB_GROUP)
+    self.Bind(wx.EVT_RADIOBUTTON, self.OnBtnManMeasure)
+    rb_measure = wx.RadioButton(panel, -1, "Measure")
+    if self.is_tx:
+      rb_manual.Enable(False)
+      rb_measure.Enable(False)
+    b = wx.lib.buttons.GenButton(panel, label="  Add cell  ")
+    b.Bind(wx.EVT_BUTTON, self.OnBtnAddCell)
+    b.SetBezelWidth(3)
+    b.SetBackgroundColour("#DDD")
+    box0.Add(rb_manual, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=charx)
+    box0.Add(rb_measure, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=charx*5)
+    box0.Add(b, flag=wx.LEFT, border=charx*5)
+    # Create the amplitude slider controls
+    box1 = wx.BoxSizer(wx.HORIZONTAL)
+    box2 = wx.BoxSizer(wx.HORIZONTAL)
+    sbs.Add(box1, flag=wx.EXPAND)
+    sbs.Add(box2, flag=wx.EXPAND)
+    # ST_ELLIPSIZE_END needed to work around a layout bug
+    fine = wx.StaticText(panel, -1, 'Gain Fine', style=wx.ST_ELLIPSIZE_END)
+    coarse = wx.StaticText(panel, -1, 'Gain Coarse', style=wx.ST_ELLIPSIZE_END)
+    box1.Add(fine, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=charx*3)
+    box2.Add(coarse, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=charx*3)
+    self.ampl1 = wx.Slider(panel, -1, 0, -sl_max, sl_max)
+    self.ampl2 = wx.Slider(panel, -1, 0, -sl_max, sl_max)
+    box1.Add(self.ampl1, flag=wx.LEFT, proportion=1, border=0)
+    box2.Add(self.ampl2, flag=wx.LEFT, proportion=1, border=0)
+    self.ampl1.Bind(wx.EVT_SCROLL, self.OnAmpl1)
     self.ampl2.Bind(wx.EVT_SCROLL, self.OnAmpl2)
-    self.phase1.Bind(wx.EVT_SCROLL, self.OnChange)
-    self.phase2.Bind(wx.EVT_SCROLL, self.OnPhase2)
+    # Create the phase slider controls
+    box3 = wx.BoxSizer(wx.HORIZONTAL)
+    box4 = wx.BoxSizer(wx.HORIZONTAL)
+    sbs.Add(box3, flag=wx.EXPAND)
+    sbs.Add(box4, flag=wx.EXPAND)
+    fine = wx.StaticText(panel, -1, 'Phase Fine', style=wx.ST_ELLIPSIZE_END)
+    coarse = wx.StaticText(panel, -1, 'Phase Coarse', style=wx.ST_ELLIPSIZE_END)
+    box3.Add(fine, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=charx*3)
+    box4.Add(coarse, flag=wx.LEFT|wx.ALIGN_CENTER_VERTICAL, border=charx*3)
+    self.phas1 = wx.Slider(panel, -1, 0, -sl_max, sl_max)
+    self.phas2 = wx.Slider(panel, -1, 0, -sl_max, sl_max)
+    box3.Add(self.phas1, flag=wx.LEFT, proportion=1, border=0)
+    box4.Add(self.phas2, flag=wx.LEFT, proportion=1, border=0)
+    self.phas1.Bind(wx.EVT_SCROLL, self.OnPhase1)
+    self.phas2.Bind(wx.EVT_SCROLL, self.OnPhase2)
+    # Create the button row
+    btnbox = wx.BoxSizer(wx.HORIZONTAL)
+    sizer.Add(btnbox, flag=wx.EXPAND)
+    btns = []
+    btnbox.Add(1, 1, proportion=10)
+    b = wx.lib.buttons.GenButton(panel, label="  Save  ")
+    btnbox.Add(b)
+    btnbox.Add(1, 1, proportion=5)
+    btns.append(b)
+    size = b.GetSize()
+    b.Bind(wx.EVT_BUTTON, self.OnBtnSave)
+    b = wx.lib.buttons.GenButton(panel, label="  Exit  ")
+    btnbox.Add(b)
+    btnbox.Add(1, 1, proportion=5)
+    btns.append(b)
+    b.Bind(wx.EVT_BUTTON, self.OnBtnExit)
+    b = wx.lib.buttons.GenButton(panel, label="  Help  ")
+    btnbox.Add(b)
+    btnbox.Add(1, 1, proportion=10)
+    btns.append(b)
+    b.Bind(wx.EVT_BUTTON, self.OnBtnHelp)
+    for b in btns:
+      b.SetBezelWidth(3)
+      b.SetBackgroundColour("#DDD")
+      b.SetSize(size)
+    sizer.Add(charx, chary)
   def Redraw(self):
-    # Print available data points
-    self.band = application.lastBand
-    data = application.bandAmplPhase.get(self.band, {})
-    data = data.get(self.rx_tx, [])
-    if data:
-      t = "Band %s VFO and frequency list\n" % self.band
-      for vfo, items in data:
-        t += "%10d:" % vfo
-        for freq, ampl, phase in items:
-          t += " %7d" % freq
-        t += "\n"
+    self.grid.ClearGrid()
+    # Print available data cells
+    row = 0
+    bands = []
+    self.cell_dict = {}
+    for band in self.bandAmplPhase:
+      if band != "Version" and self.rx_tx in self.bandAmplPhase[band]:
+        bands.append(band)
+    bands.sort(reverse=True)
+    for band in bands:
+      vfos_tunes = self.bandAmplPhase[band][self.rx_tx]
+      if vfos_tunes:
+        if self.grid.GetNumberRows() <= row:
+          self.grid.AppendRows()
+        self.grid.SetCellValue(row, 0, band)
+        self.grid.SetCellAlignment(row, 0, wx.ALIGN_CENTER, wx.ALIGN_CENTER)
+        for vfo, tunes in vfos_tunes:
+          if self.grid.GetNumberRows() <= row:
+            self.grid.AppendRows()
+          self.cell_dict[(row, 0)] = band, vfo, 0.0
+          self.grid.SetCellValue(row, 1, FreqFormatter(vfo))
+          self.grid.SetCellAlignment(row, 1, wx.ALIGN_RIGHT, wx.ALIGN_CENTER)
+          col = 2
+          for tune, ampl, phase in tunes:
+            if self.grid.GetNumberCols() <= col:
+              self.grid.AppendCols()
+              self.grid.SetColLabelValue(col, "Tune")
+            self.grid.SetCellValue(row, col, FreqFormatter(tune))
+            self.grid.SetCellAlignment(row, col, wx.ALIGN_RIGHT, wx.ALIGN_CENTER)
+            self.cell_dict[(row, col)] = tune, ampl, phase
+            if (vfo, tune) == self.new_cell:
+              self.grid.GoToCell(row, col)
+            col += 1
+          row += 1
+    self.new_cell = None
+    self.grid.ForceRefresh()
+  def SetNewCellText(self):
+    vfo = FreqFormatter(application.VFO)
+    self.add_cell_text.SetLabel("Band %s,  Center (VFO) %s,  Tune %d,  Gain %5.3f,  Phase %5.3f\u00B0" % (
+          application.lastBand, vfo, self.new_tune, self.new_amplitude + 1.0, self.new_phase))
+  def SlowHeartBeat(self):
+    if self.manual:
+      self.new_tune = application.txFreq
     else:
-      t = "Band %s: No data." % self.band
-    x, y = self.controls[0].GetPosition()
-    height = self.controls[0].GetSize().GetHeight()
-    self.controls[0].Destroy()
-    txt = wx.StaticText(self.panel, -1, t, pos=(self.tab1, y))
-    self.controls[0] = txt
-    delta = txt.GetSize().GetHeight() - height
-    for ctrl in self.controls[1:]:
-      x, y = ctrl.GetPosition()
-      y += delta
-      ctrl.Move(x, y)
-    h = self.GetClientSize().GetHeight()
-    self.SetClientSize(wx.Size(self.width, h + delta))
+      self.new_tune, gain, phase = QS.softrock_corrections(2)
+      ampl = gain - 1.0
+      self.new_amplitude = ampl
+      phase *= 57.2958
+      self.new_phase = phase
+      self.PosAmpl(ampl)
+      self.PosPhase(phase)
+    self.SetNewCellText()
+  def OnGridSelectCell(self, event=None):
+    self.grid.SetCellBackgroundColour(self.selected_row, self.selected_col, self.cell_bg_color)
+    if event:
+      event.Skip()
+      row = self.selected_row = event.GetRow()
+      col = self.selected_col = event.GetCol()
+    else:
+      row = self.selected_row
+      col = self.selected_col
+    self.grid.SetCellBackgroundColour(row, col, '#FEA')
+    self.grid.ForceRefresh()
+    band, vfo, z = self.cell_dict.get((row, 0), ('', None, 0))
+    tune, am, ph = self.cell_dict.get((row, col), (None, None, None))
+    if not band or vfo is None:
+      self.cell_amph.SetLabel("Cell is empty")
+    elif col == 0:
+      self.cell_amph.SetLabel("Band %s" % band)
+    elif col == 1:
+      self.cell_amph.SetLabel("Center (VFO) frequency %s" % FreqFormatter(vfo))
+    elif tune is None:
+      self.cell_amph.SetLabel("Cell is empty")
+    else:
+      self.cell_amph.SetLabel("Cell frequency %s, gain %.3f, phase %.3f\u00B0" % (FreqFormatter(vfo + tune), am + 1.0, ph))
   def PosAmpl(self, ampl):	# set pos1, pos2 for amplitude
     pos2 = round(ampl / self.ampl_scale)
     remain = ampl - pos2 * self.ampl_scale
@@ -973,81 +1077,172 @@ class QAdjustPhase(wx.Frame):
     pos2 = round(phase / self.phase_scale)
     remain = phase - pos2 * self.phase_scale
     pos1 = round(remain / self.phase_scale * 50.0)
-    self.phase1.SetValue(pos1)
-    self.phase2.SetValue(pos2)
-  def OnChange(self, event):
-    ampl = self.ampl_scale * self.ampl1.GetValue() / 50.0 + self.ampl_scale * self.ampl2.GetValue()
-    if abs(ampl) < self.ampl_scale * 3.0 / 50.0:
-      ampl = 0.0
-    self.t_ampl.SetLabel(self.f_ampl % ampl)
-    phase = self.phase_scale * self.phase1.GetValue() / 50.0 + self.phase_scale * self.phase2.GetValue()
-    if abs(phase) < self.phase_scale * 3.0 / 50.0:
-      phase = 0.0
-    self.t_phase.SetLabel(self.f_phase % phase)
-    QS.set_ampl_phase(ampl, phase, self.is_tx)
-    self.new_amplitude, self.new_phase = ampl, phase
+    self.phas1.SetValue(pos1)
+    self.phas2.SetValue(pos2)
   def OnAmpl2(self, event):		# re-center the fine slider when the coarse slider is adjusted
     ampl = self.ampl_scale * self.ampl1.GetValue() / 50.0 + self.ampl_scale * self.ampl2.GetValue()
     self.PosAmpl(ampl)
-    self.OnChange(event)
+    self.OnAmpl1(event)
+  def OnAmpl1(self, event):
+    ampl = self.ampl_scale * self.ampl1.GetValue() / 50.0 + self.ampl_scale * self.ampl2.GetValue()
+    self.new_amplitude = ampl
+    self.SetNewCellText()
+    QS.set_ampl_phase(self.new_amplitude, self.new_phase, self.is_tx)
   def OnPhase2(self, event):	# re-center the fine slider when the coarse slider is adjusted
-    phase = self.phase_scale * self.phase1.GetValue() / 50.0 + self.phase_scale * self.phase2.GetValue()
+    phase = self.phase_scale * self.phas1.GetValue() / 50.0 + self.phase_scale * self.phas2.GetValue()
     self.PosPhase(phase)
-    self.OnChange(event)
-  def OnBtnDestroyVFO(self, event):	# Remove entry with the application VFO
-    data = application.bandAmplPhase.get(self.band, {})
-    data = data.get(self.rx_tx, [])
-    for i in range(len(data)):
-      if data[i][0] == application.VFO:
-        del data[i]
-        break
-    self.Redraw()
-  def OnBtnSave(self, event):
-    data = application.bandAmplPhase
-    if self.band not in data:
-      data[self.band] = {}
-    data = data[self.band]
-    if self.rx_tx not in data:
-      data[self.rx_tx] = []
-    data = data[self.rx_tx]
-    for vfo, items in data:		# All items must be lists, not tuples
-      if vfo == application.VFO:
-        for i in range(len(items)):
-          item = items[i]
-          if item[0] == application.rxFreq:
-            item[1] = self.new_amplitude
-            item[2] = self.new_phase
+    self.OnPhase1(event)
+  def OnPhase1(self, event):
+    phase = self.phase_scale * self.phas1.GetValue() / 50.0 + self.phase_scale * self.phas2.GetValue()
+    self.new_phase = phase
+    self.SetNewCellText()
+    QS.set_ampl_phase(self.new_amplitude, self.new_phase, self.is_tx)
+  def OnBtnAddCell(self, event):
+    band = application.lastBand
+    vfo = application.VFO
+    self.new_cell = (vfo, self.new_tune)
+    ampl = self.new_amplitude
+    phase = self.new_phase
+    tune = self.new_tune
+    if band not in self.bandAmplPhase:
+      self.bandAmplPhase[band] = {}
+    if self.rx_tx not in self.bandAmplPhase[band]:
+      self.bandAmplPhase[band][self.rx_tx] = []
+    vfos_tunes = self.bandAmplPhase[band][self.rx_tx]
+    for i in range(0, len(vfos_tunes)):
+      vfo_tunes = vfos_tunes[i]
+      if vfo_tunes[0] == vfo:
+        tunes = vfo_tunes[1]
+        for j in range(0, len(tunes)):
+          if tunes[j][0] == tune:
+            tunes[j] = [tune, ampl, phase]
             break
         else:
-          items.append([application.rxFreq, self.new_amplitude, self.new_phase])
-          items.sort()
-        break
-    else:
-      data.append([application.VFO, [[application.rxFreq, self.new_amplitude, self.new_phase]]])
-      data.sort()
+          tunes.append([tune, ampl, phase])
+          tunes.sort()
+        self.dirty = True
+        self.Redraw()
+        return
+    vfos_tunes.append([vfo, [[tune, ampl, phase]]])
+    vfos_tunes = vfos_tunes.sort()
+    self.dirty = True
     self.Redraw()
-  def OnBtnDestroyALL(self, event):
-    dlg = wx.MessageDialog(self, "This will destroy all data for band %s!" % self.band,
-      "Destroy Data", style = wx.YES|wx.NO)
-    if dlg.ShowModal() == wx.ID_YES:
-      if self.band in application.bandAmplPhase:
-        del application.bandAmplPhase[self.band]
+    self.grid.ClearSelection()
+  def OnBtnDestroy(self, event):
+    # Create a list of cells to be deleted
+    col_row = []
+    # print("Rows", self.grid.GetSelectedRows())
+    # print("Cols", self.grid.GetSelectedCols())
+    # print("Cells", self.grid.GetSelectedCells())
+    # print("Left", self.grid.GetSelectionBlockTopLeft())
+    # print("Right", self.grid.GetSelectionBlockBottomRight())
+    #
+    # delete the cell at the grid cursor
+    row = self.grid.GetGridCursorRow()
+    col = self.grid.GetGridCursorCol()
+    cr = col, row
+    if cr not in col_row:
+      col_row.append(cr)
+    #rows = self.grid.GetSelectedRows()	# Not used
+    # delete whole columns
+    cols = self.grid.GetSelectedCols()
+    for col in cols:
+      for row in range(0, self.grid.GetNumberRows()):
+        cr = col, row
+        if cr not in col_row:
+          col_row.append(cr)
+    # delete cells
+    cells = self.grid.GetSelectedCells()
+    for cell in cells:
+      row, col = cell.Get()
+      cr = col, row
+      if cr not in col_row:
+        col_row.append(cr)
+    # delete blocks
+    top_left_list = self.grid.GetSelectionBlockTopLeft()
+    bottom_right_list = self.grid.GetSelectionBlockBottomRight()
+    for i in range(len(top_left_list)):
+      row1, col1 = top_left_list[i].Get()
+      row2, col2 = bottom_right_list[i].Get()
+      for row in range(row1, row2 + 1):
+        for col in range(col1, col2 + 1):
+          cr = col, row
+          if cr not in col_row:
+            col_row.append(cr)
+    col_row.sort(reverse=True)
+    changed = False
+    for col, row in col_row:
+      try:
+        band, vfo, z = self.cell_dict[(row, 0)]
+        vfos_tunes = self.bandAmplPhase[band][self.rx_tx]
+      except:
+        continue
+      if col in (0, 1):		# Destroy row
+        for i in range(0, len(vfos_tunes)):
+          if vfos_tunes[i][0] == vfo:
+            del vfos_tunes[i]
+            changed = True
+            break
+      else:		# Destroy cell
+        try:
+          tune, am, ph = self.cell_dict[(row, col)]
+        except:
+          continue
+        for i in range(0, len(vfos_tunes)):
+          if vfos_tunes[i][0] != vfo:
+            continue
+          tunes = vfos_tunes[i][1]
+          for j in range(0, len(tunes)):
+            if tunes[j][0] == tune:
+              del tunes[j]
+              changed = True
+              break
+    if changed:
+      self.dirty = True
       self.Redraw()
-  def OnBtnFinished(self, event=None):
+      self.selected_row = self.grid.GetGridCursorRow()
+      self.selected_col = self.grid.GetGridCursorCol()
+      self.OnGridSelectCell()
+    self.grid.ClearSelection()
+  def OnBtnManMeasure(self, event):
+    self.manual = event.GetEventObject().GetLabel()[0:3] == "Man"
+    self.ampl1.Enable(self.manual)
+    self.ampl2.Enable(self.manual)
+    self.phas1.Enable(self.manual)
+    self.phas2.Enable(self.manual)
+    if self.manual:
+      QS.softrock_corrections(1)
+      QS.set_ampl_phase(self.new_amplitude, self.new_phase, self.is_tx)
+    else:
+      QS.softrock_corrections(2)
+      QS.set_ampl_phase(0.0, 0.0, self.is_tx)
+  def OnBtnSave(self, event):
+    application.bandAmplPhase = copy.deepcopy(self.bandAmplPhase)
+    self.dirty = False
+  def OnBtnExit(self, event):
+    if self.dirty:
+      dlg = wx.MessageDialog(self,
+        "Your changes are not saved. Do you want to save them?", "Changes Were Made",
+        wx.OK|wx.CANCEL|wx.CANCEL_DEFAULT|wx.ICON_WARNING)
+      dlg.SetOKLabel("Discard Changes")
+      ret = dlg.ShowModal()
+      dlg.Destroy()
+      if ret == wx.ID_CANCEL:
+        return
+    QS.softrock_corrections(0)
     ampl, phase = application.GetAmplPhase(self.rx_tx)
     QS.set_ampl_phase(ampl, phase, self.is_tx)
     application.w_phase = None
     self.Destroy()
   def OnBtnHelp(self, event=None):
     dlg = wx.MessageDialog(self,
-'The "VFO" is the frequency at the center of the graph screen. The Rx or Tx frequency is the offset from the VFO. \
-Adjust the VFO and the frequency as desired.  Then adjust the sliders to minimize the image. Press "Save" when satisfied. \
-To adjust the VFO, use the band Up/Down buttons, or right click the graph at the desired VFO. \
+'For manual adjustment attach a signal generator or look at a strong signal in the band. Set the Quisk frequency to the signal frequency. \
+Adjust the amplitude and phase sliders to minimize the image. To save the adjustment, press Add Cell. \
+For automatic measurement, attach a signal generator and choose some frequencies. Press Add Cell for each one. \
 Adjustments must be made for both receive and transmit on each band. \
+No changes are made to the table of adjustments until you press Save. \
 The maximum slider adjustment range can be changed on the radio Hardware screen. \
-The other buttons will delete the data for the current VFO, or for the whole band. \
-For more information, press the main "Help" button, \
-then "Documentation", then "SoftRock".'
+For more information, press the main "Help" button, then "Documentation", then "SoftRock".'
     , "Adjustment Help", style=wx.OK)
     dlg.ShowModal()
 
@@ -2028,6 +2223,9 @@ class ControlMixin:
         elif name == "digital_output_level":
           setattr(conf, name, x)
           QS.set_sparams(digital_output_level=x)
+        elif name == "file_play_level":
+          setattr(conf, name, x)
+          QS.set_sparams(file_play_level=x)
         elif name[0:7] == 'hermes_':
           if name == 'hermes_TxLNA_dB':
             application.Hardware.ChangeTxLNA(x)
@@ -3437,13 +3635,13 @@ class RadioSound(BaseWindow):		# The Sound page in the second-level notebook for
     self.radio_dict = local_conf.GetRadioDict(self.radio_name)
     self.num_cols = 8
     for name, text, fmt, help_text, values in local_conf.GetSectionData('Sound'):
-      if name == 'digital_output_level':
+      if name in ('digital_output_level', 'file_play_level'):
         value = self.GetValue(name, self.radio_dict)
         no_edit = "choice" in fmt or fmt == 'boolean'
         txt, cb, btn = self.AddTextComboHelp(1, text, value, values, help_text, no_edit)
         cb.handler = self.OnChange
         cb.quisk_data_name = name
-        break
+        self.NextRow()
     self.NextRow()
     # Add the grid for the sound settings
     sizer = wx.GridBagSizer(2, 2)

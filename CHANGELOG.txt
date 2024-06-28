@@ -1,3 +1,15 @@
+Quisk Version 4.2.35  June 2024
+===============================
+There is a new item "File play level" on the Config/radio/Sound screen to reduce the volume when playing files.
+Use it to reduce the volume of the CQ message relative to radio sound.
+
+Dan, AI2M, provided a patch to compile in MacOS on Apple Silicon. Thanks Dan!
+
+I am working on better amplitude and phase adjustments when using SoftRock radios. The new corrections
+screen has a spreadsheet to display the VFO and tune offset. And there is a feature to automatically
+measure the corrections when using a signal generator as a source. If you use Quisk with SoftRock or similar
+radios, please let me know what you think.
+
 Quisk Version 4.2.34  May 2024
 ==============================
 For the Hermes-Lite2 the inhibit Tx function (CN8) now releases the Spot button.

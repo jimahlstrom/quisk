@@ -1084,7 +1084,15 @@ digital_rx1_name = ""
 ## digital_output_level		Digital output level, number
 # This is the volume control 0.0 to 1.0 for digital playback to fldigi, etc.
 # Changes are immediate (no need to restart).
-digital_output_level = 0.7
+digital_output_level = 0.700
+
+## file_play_level		File play level, number
+# Use this to reduce the volume when playing files. For example, if the volume of the CQ
+# message is too loud, reduce the level relative to radio sound.
+# Changes are immediate (no need to restart).
+file_play_level = 1.000
+#file_play_level = 0.500
+#file_play_level = 0.100
 
 # Sound card names:
 #
