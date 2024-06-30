@@ -601,7 +601,7 @@ class Configuration:
     section = None
     data_name = None
     multi_line = False
-    fp = open(filename, "r")
+    fp = open(filename, "r", encoding=""utf8)	# win10 64bit, non-English OS, it has to be specific encoding with utf8
     for line in fp:
       line = line.strip()
       if not line:
