@@ -1976,7 +1976,7 @@ static int quisk_process_demodulate(complex double * cSamples, double * dsamples
 			ssb_squelch(dsamples, nSamples, quisk_filter_srate, MeasureSquelch + bank);
 			d_delay(dsamples, nSamples, bank, SQUELCH_FFT_SIZE);
 		}
-		quisk_calc_audio_graph(pow(2, 31) - 1, NULL, dsamples, nSamples, 1);
+		//quisk_calc_audio_graph(pow(2, 31) - 1, NULL, dsamples, nSamples, 1);
 		nSamples = quisk_dInterpolate(dsamples, nSamples, &Storage[bank].filtAudio24p4, 2);
 		nSamples = quisk_dInterp2HB45(dsamples, nSamples, &Storage[bank].HalfBand7);
 		//quisk_calc_audio_graph(pow(2, 31) - 1, NULL, dsamples, nSamples, 1);
@@ -5060,6 +5060,62 @@ static PyObject * get_bandscope(PyObject * self, PyObject * args)	// Called by t
 	return Py_None;
 }
 
+#if 0
+static void check_channel_delay(fft_data * ptFft)
+{
+	int i, maxi, freq;
+	static int count=0, freq0;
+	static double gain=0, phase=0;
+	double d, ampl, maxa;
+	static double complex * samples1=NULL, * samples2;
+
+	if (samples1 == NULL) {
+		samples1 = (double complex *)malloc(fft_size * sizeof(double complex));
+		samples2 = (double complex *)malloc(fft_size * sizeof(double complex));
+	}
+	for (i = 0; i < fft_size; i++) {
+		samples1[i] = creal(ptFft->samples[i]);
+		samples2[i] = cimag(ptFft->samples[i]);
+	}
+	fftw_execute_dft(quisk_fft_plan, samples1, samples1);
+	fftw_execute_dft(quisk_fft_plan, samples2, samples2);
+	maxa = 0;
+	maxi = 0;
+	for (i = 0; i < fft_size / 2; i++) {
+		ampl = cabs(samples1[i]);
+		if (ampl > maxa) {
+			maxa = ampl;
+			maxi = i;
+		}
+	}
+	freq = maxi * fft_sample_rate / fft_size;
+	//freq = maxi * 44100 / fft_size;
+	gain += cabs(samples1[maxi]) / cabs(samples2[maxi]);
+	d = carg(samples1[maxi]) - carg(samples2[maxi]);
+	if (d > M_PI)
+		d -= M_PI * 2;
+	else if(d < - M_PI)
+		d += M_PI * 2;
+	phase += d;
+	count += 1;
+	if (count == 1) {
+		freq0 = freq;
+	}
+	else if (freq != freq0) {
+		gain = phase = count = 0;
+		return;
+	}
+	if (count > 10) {
+		gain /= count;
+		phase /= count;
+		//printf("Channel delay freq %6d, gain %6.3lf, phase %8.5lf radians, %6.3lf degrees\n",
+		//	freq, gain, phase, phase * 57.29578);
+		printf("%6d, %6.3lf, %6.3lf\n", freq, gain, phase * 57.29578);
+		gain = phase = count = 0;
+	}
+}
+#endif
+
 static void softrock_correct_fft(fft_data * ptFft, int fixit)
 { // See i/Q balance in Rocky: https://www.dxatlas.com/Rocky/Advanced.asp
 	double ampl, r1, r2, i1, i2, Zr, Zi, Pwr, Gain, Phase, OutR, OutI, S1R, S1I, S2R, S2I;
@@ -5205,6 +5261,7 @@ static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the G
 		// Continue with FFT calculation
 		for (i = 0; i < fft_size; i++)		// multiply by window
 			ptFft->samples[i] *= fft_window[i];
+		//check_channel_delay(ptFft);
 		fftw_execute_dft(quisk_fft_plan, ptFft->samples, ptFft->samples);	// Calculate FFT
 		if (softrock_correct_active == 2)
 			softrock_correct_fft(ptFft, 0);

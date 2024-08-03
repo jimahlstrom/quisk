@@ -88,6 +88,7 @@ static int close_file_rec;
 double digital_output_level = 0.7;
 static double file_play_level = 1.0;
 static int dc_remove_bw=100;			// bandwidth of DC removal filter
+static int multus_cw_samples = 0;		// always send CW Tx samples to the Multus radio, even in Rx
 
 static ty_sample_start pt_sample_start;
 static ty_sample_stop  pt_sample_stop;
@@ -1109,7 +1110,7 @@ int quisk_read_sound(void)	// Called from sound thread
 		if (is_cw) {	// Transmit CW; use capture device for timing, not microphone
 			cwCount += (double)retval * quisk_MicPlayback.sample_rate / quisk_sound_state.sample_rate;
 			mic_count = 0;
-			if (QUISK_CWKEY_DOWN || quiskSpotLevel >= 0) {
+			if (QUISK_CWKEY_DOWN || quiskSpotLevel >= 0 || multus_cw_samples) {
 				while (cwCount >= 1.0) {
 					if (cwEnvelope < 1.0) {
 						cwEnvelope += 1. / (quisk_MicPlayback.sample_rate * 5e-3);	// 5 milliseconds
@@ -1601,10 +1602,9 @@ PyObject * quisk_micplay_channels(PyObject * self, PyObject * args)	// Called fr
 PyObject * quisk_set_sparams(PyObject * self, PyObject * args, PyObject * keywds)
 {  /* Call with keyword arguments ONLY; change local parameters */
 	static char * kwlist[] = {"dc_remove_bw", "digital_output_level", "remote_control_slave", "remote_control_head",
-		"file_play_level", NULL} ;
-
-	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|idiid", kwlist, &dc_remove_bw, &digital_output_level,
-	&remote_control_slave, &remote_control_head, &file_play_level))
+		"file_play_level", "multus_cw_samples", NULL} ;
+	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|idiidi", kwlist, &dc_remove_bw, &digital_output_level,
+	&remote_control_slave, &remote_control_head, &file_play_level, &multus_cw_samples))
 		return NULL;
 	Py_INCREF (Py_None);
 	return Py_None;

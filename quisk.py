@@ -2537,12 +2537,10 @@ class WaterfallDisplay(wx.Window):
     self.top_key = 8
     self.top_size = (self.top_key + 2) * (self.top_key - 1) // 2
     # Make the palette
-    if conf.waterfall_palette == 'B':
-      pal2 = conf.waterfallPaletteB
-    elif conf.waterfall_palette == 'C':
-      pal2 = conf.waterfallPaletteC
-    else:
+    if conf.waterfall_palette == 'A':
       pal2 = conf.waterfallPalette
+    else:
+      pal2 = getattr(conf, "waterfallPalette" + conf.waterfall_palette)
     red = bytearray(256)
     green = bytearray(256)
     blue = bytearray(256)
@@ -4918,7 +4916,8 @@ class App(wx.App):
     self.freqDisplay.Display(self.txFreq + self.VFO)
     # On/Off button
     if conf.button_layout == 'Large screen':
-      b_onoff = QuiskCheckbutton(frame, self.OnBtnOnOff, "On", color='#77DD77')
+      b_onoff = QuiskCheckbutton(frame, self.OnBtnOnOff, "On", color=conf.color_onoff)
+      b_onoff.text_color = conf.color_onoff_text
       b_onoff.SetValue(True, do_cmd=False)
       h = b_freqdisp.height
       b_onoff.SetSizeHints(h, h, h, h)

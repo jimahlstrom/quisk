@@ -1916,6 +1916,8 @@ btn_text_switch = u"\u21C4"		# Character to switch left-right
 color_scheme = 'A'
 #color_scheme = 'B'
 #color_scheme = 'C'
+#color_scheme = 'DK1MI_GR'
+#color_scheme = 'DK1MI_AM'
 
 ## waterfall_palette			Waterfall colors, text choice
 # This controls the colors used in the waterfall.  The default color scheme is A, and you can change this scheme
@@ -1923,6 +1925,7 @@ color_scheme = 'A'
 waterfall_palette = 'A'
 #waterfall_palette = 'B'
 #waterfall_palette = 'C'
+#waterfall_palette = 'DK1MI_AM'
 
 
 
@@ -1957,6 +1960,8 @@ color_txline		= 'red'					# vertical line color for tx in graph
 color_rxline		= 'green'				# vertical line color for rx in graph
 color_graph_msg_fg	= 'black'				# text messages on the graph screen
 color_graph_msg_bg	= 'lemonchiffon2'		# background of text messages on the graph screen
+color_onoff		= '#77DD77'			# on/off power button
+color_onoff_text	= 'black'				# on/off power button text
 
 # This color scheme B, a dark color scheme designed by Steve Murphy, KB8RWQ.
 # Additional colors added by N2ADR.
@@ -1986,6 +1991,8 @@ color_scheme_B = {
 'color_rxline'		: 'green',
 'color_graph_msg_fg'		: 'white',
 'color_graph_msg_bg'		: '#111111',
+'color_onoff'			: '#77DD77',
+'color_onoff_text'		: 'black',
 }
 
 # This is color scheme C:
@@ -2023,12 +2030,73 @@ color_scheme_C = {
 'color_rxline'		: '#3CC918',
 'color_graph_msg_fg'	: '#000000',
 'color_graph_msg_bg'	: 'lemonchiffon2',
+'color_onoff'		: '#77DD77',
+'color_onoff_text'	: 'black',
 }
 #############################################################################################
+# This is a green dark color scheme designed by Michael
+color_scheme_DK1MI_GR = {
+    'color_bg'            : '#0F0F0F', # Lower screen background
+    'color_bg_txt'        : '#00CC00', # Lower screen text color
+    'color_graph'         : '#0F0F0F', # Graph background
+    'color_config2'       : '#008000', # color in tab row of config screen
+    'color_gl'            : '#2F4F4F', # Lines on the graph
+    'color_graphticks'    : '#CCCCCC', # Graph ticks
+    'color_graphline'     : '#00FF00', # graph data line color
+    'color_graphlabels'   : '#00FF00', # graph label color
+    'color_btn'           : '#141414', # button color
+    'color_check_btn'     : '#005500', # color of a check button when it is checked
+    'color_cycle_btn'     : '#005500', # color of a cycle button when it is checked
+    'color_adjust_btn'    : '#005500', # color of an adjustable button when it is checked
+    'color_test'          : '#005500', # color of a button used for test (turn off for tx)
+    'color_freq'          : '#208B57', # background color of frequency and s-meter
+    'color_freq_txt'      : '#00FF00', # text color of frequency display
+    'color_entry'         : '#2E2E2E', # frequency entry box
+    'color_entry_txt'     : '#00FF00', # text color of entry box
+    'color_enable'        : '#00CC00', # text color for an enabled button
+    'color_disable'       : '#FF0000', # text color for a disabled button
+    'color_popchoice'     : '#555555', # text color for button that pops up a row of buttons
+    'color_bandwidth'     : '#003300', # color for bandwidth display; thanks to WB4JFI
+    'color_txline'        : '#00CC00', # vertical line color for tx in graph
+    'color_rxline'        : '#00FF00', # vertical line color for rx in graph
+    'color_graph_msg_fg'  : '#008800', # text messages on the graph screen
+    'color_graph_msg_bg'  : '#1E1E1E', # background of text messages on the graph screen
+    'color_onoff'         : '#005500', # On/Off button
+    'color_onoff_text'    : '#FF0000', # On/Off text
+}
+#############################################################################################
+# This is an amber dark color scheme designed by Michael
+color_scheme_DK1MI_AM = {
+    'color_bg'            : '#0F0F0F', # Lower screen background
+    'color_bg_txt'        : '#FFBF00', # Lower screen text color
+    'color_graph'         : '#0F0F0F', # Graph background
+    'color_config2'       : '#FF8000', # Color in tab row of config screen
+    'color_gl'            : '#2F4F4F', # Lines on the graph
+    'color_graphticks'    : '#CCCCCC', # Graph ticks
+    'color_graphline'     : '#FFBF00', # Graph data line color
+    'color_graphlabels'   : '#FFBF00', # Graph label color
+    'color_btn'           : '#141414', # Button color
+    'color_check_btn'     : '#865E2E', # Color of a check button when it is checked
+    'color_cycle_btn'     : '#865E2E', # Color of a cycle button when it is checked
+    'color_adjust_btn'    : '#865E2E', # Color of an adjustable button when it is checked
+    'color_test'          : '#865E2E', # Color of a button used for test (turn off for tx)
+    'color_freq'          : '#FF9933', # Background color of frequency and s-meter
+    'color_freq_txt'      : '#000000', # Text color of frequency display
+    'color_entry'         : '#2E2E2E', # Frequency entry box
+    'color_entry_txt'     : '#FFBF00', # Text color of entry box
+    'color_enable'        : '#FFBF00', # Text color for an enabled button
+    'color_disable'       : '#FF0000', # Text color for a disabled button
+    'color_popchoice'     : '#555555', # Text color for button that pops up a row of buttons
+    'color_bandwidth'     : '#4B2E0F', # Color for bandwidth display
+    'color_txline'        : '#FFBF00', # Vertical line color for tx in graph
+    'color_rxline'        : '#FF8000', # Vertical line color for rx in graph
+    'color_graph_msg_fg'  : '#FF8000', # Text messages on the graph screen
+    'color_graph_msg_bg'  : '#1E1E1E', # Background of text messages on the graph screen
+    'color_onoff'         : '#865E2E', # On/Off button
+    'color_onoff_text'    : '#FF0000', # On/Off text
+}
 
-
-# These are the palettes for the waterfall.  The one used is named waterfallPallette,
-# so to use a different one, overwrite this name in your configuration file.
+# These are the palettes for the waterfall.
 waterfallPalette = (
      (  0,   0,   0,   0),
      ( 36,  85,   0, 255),
@@ -2085,6 +2153,18 @@ waterfallPaletteC = (	# from David Fainitski
 (224, 195, 198, 35),
 (255, 245, 99, 3)
 ) 
+
+waterfallPaletteDK1MI_AM = (	# from Michael
+    (0, 0, 0, 0),
+    (32, 25, 20, 0),
+    (64, 58, 40, 6),
+    (96, 78, 50, 16),
+    (128, 120, 85, 29),
+    (160, 144, 100, 51),
+    (192, 195, 140, 43),
+    (224, 198, 150, 35),
+    (255, 255, 191, 0)
+)
 
 # This is the data used to draw colored lines on the frequency X axis to
 # indicate CW and Phone sub-bands.  You can make it anything you want.

@@ -1,3 +1,8 @@
+Quisk Version 4.2.36  August 2024
+=================================
+I added two new color schemes by Michael, DK1MI. The On/Off button color and text color can
+now be configured. (Michael, send me the final colors).  There are a few other small changes.
+
 Quisk Version 4.2.35  June 2024
 ===============================
 There is a new item "File play level" on the Config/radio/Sound screen to reduce the volume when playing files.

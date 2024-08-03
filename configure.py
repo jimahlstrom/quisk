@@ -284,10 +284,8 @@ class Configuration:
         self.settings_changed = True
         errors = errors + "Failed to set %s to %s using format %s\n" % (k, v, fmt)
         #traceback.print_exc()
-    if conf.color_scheme == 'B':
-      conf.__dict__.update(conf.color_scheme_B)
-    elif conf.color_scheme == 'C':
-      conf.__dict__.update(conf.color_scheme_C)
+    if conf.color_scheme != 'A':
+      conf.__dict__.update(getattr(conf, 'color_scheme_' + conf.color_scheme))
     self.RequiredValues(radio_dict)	# Why not update conf too??? This only updates the radio_dict.
     if errors:
       dlg = wx.MessageDialog(None, errors,
@@ -601,7 +599,7 @@ class Configuration:
     section = None
     data_name = None
     multi_line = False
-    fp = open(filename, "r")
+    fp = open(filename, "r", encoding="utf8")
     for line in fp:
       line = line.strip()
       if not line:
@@ -986,6 +984,7 @@ class QAdjustPhase(wx.Frame):
     btnbox.Add(1, 1, proportion=10)
     btns.append(b)
     b.Bind(wx.EVT_BUTTON, self.OnBtnHelp)
+    #b.Bind(wx.EVT_BUTTON, self.OnGraphData)
     for b in btns:
       b.SetBezelWidth(3)
       b.SetBackgroundColour("#DDD")
@@ -1220,6 +1219,7 @@ class QAdjustPhase(wx.Frame):
     application.bandAmplPhase = copy.deepcopy(self.bandAmplPhase)
     self.dirty = False
   def OnBtnExit(self, event):
+    #self.OnGraphData(None)
     if self.dirty:
       dlg = wx.MessageDialog(self,
         "Your changes are not saved. Do you want to save them?", "Changes Were Made",
@@ -1245,6 +1245,27 @@ The maximum slider adjustment range can be changed on the radio Hardware screen.
 For more information, press the main "Help" button, then "Documentation", then "SoftRock".'
     , "Adjustment Help", style=wx.OK)
     dlg.ShowModal()
+  def OnGraphData(self, event):
+    if not hasattr(self, "VFO"):
+      self.VFO = []
+      self.Tune = []
+      self.Gain = []
+      self.Phase = []
+    if event:
+      self.VFO.append(application.VFO)
+      self.Tune.append(self.new_tune)
+      self.Gain.append(self.new_amplitude + 1.0)
+      self.Phase.append(self.new_phase)
+    else:
+      for name in ("VFO", "Tune", "Gain", "Phase"):
+        print ("%s = [" % name)
+        lst = getattr(self, name)
+        for i in range(0, len(lst)):
+          if name[0] in "VT":
+            print("%d," % lst[i])
+          else:
+            print("%.5f," % lst[i])
+        print ("]")
 
 class ListEditDialog(wx.Dialog):	# Display a dialog with a List-Edit control, plus Ok/Cancel
   def __init__(self, parent, title, choice, choices, width):
