@@ -178,6 +178,8 @@ class Hardware(BaseHardware):
       vfo = self.vfo + int(offset * 1000)	# Convert kHz to Hz
       self.ChangeFrequency(vfo, vfo, 'repeater')
     return False
+  def ImmediateChange(self, name):
+    return
   def OnSpot(self, level):
     pass
   def HeartBeat(self):	# Called at about 10 Hz by the main

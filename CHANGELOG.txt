@@ -1,3 +1,13 @@
+Quisk Version 4.2.37  August 2024
+=================================
+Quisk now has a new option "Fixed tune offset" on the Config/radio/Options screen. This is meant for
+Softrock radios that need a constant audio frequency to simplify amplitude and phase corrections.
+The value zero means no change to Quisk tuning. Otherwise enter the fixed frequency offset from center.
+If you are using the obsolete "mouse_tune_method = 1" please delete it and use this new feature.
+If you use softrock_tune_vfo.py as your hardware file, you should replace it with softrock/hardware_usb.py.
+
+Quisk now works on Python 3.12. And I fixed a bug in the small screen graph width.
+
 Quisk Version 4.2.36  August 2024
 =================================
 I added two new color schemes by Michael, DK1MI. The On/Off button color and text color can

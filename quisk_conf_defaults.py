@@ -1287,6 +1287,18 @@ dc_remove_bw = 100
 #dc_remove_bw = 200
 #dc_remove_bw = 400
 
+## fixed_tune_offset		Fixed tune offset, integer
+# If this is zero, Quisk tunes as usual. The hardware frequency (the VFO or center frequency)
+# is fixed and Quisk tunes
+# within the spectrum returned by the hardware. Otherwise enter a fixed offset between the
+# center frequency and the tuning frequency. Then tuning is done by the hardware.
+# This is useful with Softrock hardware as
+# it simplifies the corrections for amplitude and phase imbalance.
+# Changes are immediate (no need to restart).
+fixed_tune_offset = 0
+#fixed_tune_offset = 5000
+#fixed_tune_offset = 10000
+
 
 
 

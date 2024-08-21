@@ -7,7 +7,7 @@ import os
 # You must define the version here.  A title string including
 # the version will be written to __init__.py and read by quisk.py.
 
-Version = '4.2.36'
+Version = '4.2.37'
 
 fp = open("__init__.py", "w")	# write title string
 fp.write("#Quisk version %s\n" % Version)
@@ -85,7 +85,7 @@ N1MM+ and software that uses Hamlib.
 	url = 'http://james.ahlstrom.name/quisk/',
 	packages = ['quisk', 'quisk.n2adr', 'quisk.softrock', 'quisk.freedvpkg',
 		'quisk.hermes', 'quisk.hiqsdr', 'quisk.afedrinet', 'quisk.soapypkg',
-		'quisk.sdrmicronpkg', 'quisk.perseuspkg', 'quisk.ac2yd'],
+		'quisk.sdrmicronpkg', 'quisk.perseuspkg', 'quisk.ac2yd', 'quisk.multuspkg'],
 	package_dir =  {'quisk' : '.'},
 	package_data = {'' : ['*.txt', '*.html', '*.so', '*.dll']},
 	entry_points = {'gui_scripts' : ['quisk = quisk.quisk:main', 'quisk_vna = quisk.quisk_vna:main']},

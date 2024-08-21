@@ -328,7 +328,7 @@ class Configuration:
     path = self.NormPath(path)
     if not os.path.isfile(path):
       dlg = wx.MessageDialog(None,
-        "Failure for hardware file %s!" % path,
+        "Can not find the hardware file %s!" % path,
         'Hardware File', wx.OK|wx.ICON_ERROR)
       ret = dlg.ShowModal()
       dlg.Destroy()
@@ -399,11 +399,12 @@ class Configuration:
     notebk.AddPage(self.radio_page, "Radios")
     self.radios_page_start = notebk.GetPageCount()
     notebk.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanging, notebk)
+    if Settings[1] in Settings[2]:
+      page = RadioNotebook(notebk, Settings[1])
+      notebk.AddPage(page, "*%s*" % Settings[1])
     for name in Settings[2]:
-      page = RadioNotebook(notebk, name)
-      if name == Settings[1]:
-        notebk.AddPage(page, "*%s*" % name)
-      else:
+      if name != Settings[1]:
+        page = RadioNotebook(notebk, name)
         notebk.AddPage(page, name)
   def GuessType(self):
     udp = conf.use_rx_udp
@@ -477,7 +478,7 @@ class Configuration:
     for rxname, data in self.receiver_data:
       if rxname == receiver_name:
         return data
-    return None
+    return ()
   def GetReceiverDatum(self, receiver_name, item_name):
     for rxname, data in self.receiver_data:
       if rxname == receiver_name:
@@ -563,6 +564,8 @@ class Configuration:
     # self.format4name with the items that Configuration understands.
     # Dicts and lists are Python objects.  All other items are text, not Python objects.
     #
+    # This parses the quisk_conf_defaults.py file and user-defined radios in ./*pkg/quisk_hardware.py.
+    #
     # Sections start with 16 #, section name
     # self.sections is a list of [section_name, section_data]
     # section_data is a list of [data_name, text, fmt, help_text, values]
@@ -595,7 +598,7 @@ class Configuration:
       except:
         traceback.print_exc()
   def _ParserConf(self, filename):
-    re_AeqB = re.compile("^#?(\w+)\s*=\s*([^#]+)#*(.*)")		# item values "a = b"
+    re_AeqB = re.compile(r"^#?(\w+)\s*=\s*([^#]+)#*(.*)")		# item values "a = b"
     section = None
     data_name = None
     multi_line = False
@@ -2227,7 +2230,8 @@ class ControlMixin:
       if self.radio_name == Settings[1]:	# changed for current radio
         if name in ('hot_key_ptt_toggle', 'hot_key_ptt_if_hidden', 'keyupDelay', 'cwTone', 'pulse_audio_verbose_output',
                     'start_cw_delay', 'start_ssb_delay', 'maximum_tx_secs', 'quisk_serial_cts', 'quisk_serial_dsr',
-                    'hot_key_ptt1', 'hot_key_ptt2', 'midi_ptt_toggle', 'TxRxSilenceMsec', 'hermes_lite2_enable'):
+                    'hot_key_ptt1', 'hot_key_ptt2', 'midi_ptt_toggle', 'TxRxSilenceMsec', 'hermes_lite2_enable',
+                    'fixed_tune_offset'):
           setattr(conf, name, x)
           application.ImmediateChange(name)
         elif name[0:4] in ('lin_', 'win_'):
@@ -2258,6 +2262,9 @@ class ControlMixin:
           elif hasattr(application.Hardware, "ImmediateChange"):
             setattr(conf, name, x)
             application.Hardware.ImmediateChange(name)
+        elif name[0:6] == 'keyer_':
+          setattr(conf, name, x)
+          application.ImmediateChange(name)
   def FormatOK(self, value, fmt4):		# Check formats integer, number, boolean
     ok, v = self.EvalItem(value, fmt4)
     return ok
@@ -2660,6 +2667,7 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     choices = []
     for name, data in local_conf.receiver_data:
       choices.append(name)
+    choices.sort()
     self.add_type = self.AddComboCtrl(2, '', choices=choices, no_edit=True)
     self.add_type.SetSelection(0)
     item = self.AddTextL(3, "and name the new radio")
@@ -2743,11 +2751,9 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     choices = Settings[2][:]			# can rename any available radio
     self.rename_old.SetItems(choices)
     self.rename_old.SetSelection(0)
-    if "ConfigFileRadio" in choices:
+    if "ConfigFileRadio" in choices:	# can not delete ConfigFileRadio
       choices.remove("ConfigFileRadio")
-    if Settings[1] in choices:
-      choices.remove(Settings[1])
-    self.delete_name.SetItems(choices)	# can not delete ConfigFileRadio nor the current radio
+    self.delete_name.SetItems(choices)
     self.delete_name.SetSelection(0)
     choices = Settings[2] + ["Ask me"]
     if "ConfigFileRadio" not in choices:
@@ -2892,12 +2898,6 @@ class RadioSection(BaseWindow):		# The pages for each section in the second-leve
       hlp = "To delete a row, select it and press this button."
       self.AddTextButtonHelp(2, "Delete Midi row", "Delete", self.OnMidiDelete, hlp)
       self.NextRow()
-    if self.section == "Timing and CW":
-      if col != 1:
-        col = 1
-        self.NextRow()
-      self.NextRow()
-      self.AddTextL(1, 'Midi CW key moved to "Keys"', span=4)
     if not Keys:
       self.AddColSpacer(2, 20)
       self.AddColSpacer(5, 20)
@@ -3688,8 +3688,10 @@ class RadioSound(BaseWindow):		# The Sound page in the second-level notebook for
     self.NextRow()
     choices = (("48000", "96000", "192000"), ("0", "1"), ("0", "1"), (" ", "0", "1"))
     r = 0
-    if "SoftRock" in self.radio_dict['hardware_file_type']:		# Samples come from sound card
-      softrock = True
+    if "SoftRock" in self.radio_dict['hardware_file_type']:
+      softrock = True		# Samples come from sound card
+    elif hasattr(application.Hardware, "use_softrock"):
+      softrock = application.Hardware.use_softrock
     else:
       softrock = False
     last_row = 8

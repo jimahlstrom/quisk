@@ -194,7 +194,7 @@ Quisk is free open source software written in Python and C. It is hosted on the 
 <br>
 <p>
 If you have Python 3 installed on your computer, just continue to use that version.
-<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11.</b>
+<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11 or 3.12.</b>
 If you want to install a more recent version of Python, uninstall the old version first.
 Running multiple versions of Python is possible but can be confusing and is not necessary.
 A Quisk installation is needed for each version of Python you have.
@@ -204,7 +204,7 @@ A Quisk installation is needed for each version of Python you have.
 <p>
 Windows does not include Python, so you must first install a recent version of 64-bit Python 3.
 If you already have 64-bit Python 3 installed, just keep using it.
-<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11.</b>
+<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11 or 3.12.</b>
 There may be newer versions of Python, but until support is added, use the versions listed above.
 Python is available from <a href="http://www.python.org/">http://www.python.org</a>.
 There is an option to <b>Add Python to PATH</b>. You MUST select
@@ -239,13 +239,19 @@ python -m pip install --upgrade pyserial
 <br><br>
 python -m pip install --upgrade quisk
 <br><br>
-You should then be able to start Quisk with the command "quisk".
-You can also start Quisk with "python -m quisk".
 To create a Quisk shortcut on your desktop, right-click an empty space and select "New" and "Shortcut".
-Use "quisk.exe" as the command and "Quisk" as the name.
-The "quisk.exe" program is in <b>your_install_directory</b>\Scripts.
+Enter this as the location of the item:
+</p>
+<br>
+<pre>
+pythonw -m quisk
+</pre>
+<br>
+<p>
+and then name the shortcut, perhaps "Quisk".
+If you check the properties you will see that Windows expanded the location and start directory to the full path.
 If you are curious, Quisk and its Python source files are installed in "<b>your_install_directory</b>\Lib\site-packages\quisk".
-If you change to that directory you can run Quisk with "python quisk.py".
+If you change to that directory you can run Quisk with "pythonw quisk.py".
 </p>
 <br>
 <p>
@@ -824,14 +830,24 @@ SoftRock radios use an analog mixer to change the RF signal to stereo audio, and
 A high quality sound card is advisable. The analog mixer is not perfect, and it will be necessary to adjust the I and Q
 signals to equal amplitude and 90 degrees phase difference. Use the Config/Config screen buttons to
 bring up an adjustment screen. Adjustments must be made for each band, and separately for transmit and receive.
-The adjustment depends on both the VFO frequency and the tuning offset from the VFO. See my paper 
+The adjustment depends on both the VFO frequency and the tuning offset from the VFO.
+Quisk has an option to fix the tuning offset to a constant and to tune with the hardware.
+The tuning offset then has a constant correction and it is only necessary to correct for the VFO,
+a much less sensitive correction.
+See my paper 
 <a href="http://james.ahlstrom.name/phase_corr.html">http://james.ahlstrom.name/phase_corr.html</a> for more information.
+<br>
+<br>
 A good strategy is to pick a VFO near the band center, and record corrections at an Rx frequency of -15000, -1000, 1000 and 15000 Hertz.
 If the corrections are sensitive to VFO, record the corrections for these same Rx frequencies at VFOs equal to
 or slightly outside the upper and lower band edges.
 To effectively adjust for multiple VFO frequencies, the VFOs must have the same table of Rx frequencies.
 You can add as many correction points as desired. The corrections are saved in the file quisk_init.json. This file can be edited
 by hand if you are a Python expert. Otherwise you can just read the values.
+<br>
+<br>
+If you fix the tuning offset to a constant, you can create a correction for VFO at the band center, or
+the center and both edges.
 <br>
 <br>
 To create a Receive correction point for a given VFO and frequency, attach a signal generator to the SoftRock through an attenuator,

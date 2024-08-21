@@ -836,6 +836,8 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     """Send text back to the client."""
     if isinstance(text, Q3StringTypes):
       text = text.encode('utf-8', errors='ignore')
+    if HAMLIB_DEBUG:
+      print ("Rig2 send", text)
     try:
       self.sock.sendall(text)
     except socket.error:
@@ -942,6 +944,8 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     else:
       return 1
     self.input = self.input.strip()		# Here is our command line
+    if HAMLIB_DEBUG:
+      print ("Rig2 received", self.input)
     while self.input:
       # Parse the commands and call the appropriate handlers
       self.params = ''
@@ -992,8 +996,12 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     if rx:
       rx = rx[0]
       self.Reply('Frequency', rx.txFreq + rx.VFO, 0)
+      if HAMLIB_DEBUG:
+        print ("GetFreq rx", rx.txFreq, rx.VFO)
     else:
       self.Reply('Frequency', self.app.rxFreq + self.app.VFO, 0)
+      if HAMLIB_DEBUG:
+        print ("GetFreq app", self.app.rxFreq, self.app.txFreq, self.app.VFO)
   def SetFreq(self):	# The Rx frequency
     freq = self.GetParamNumber()
     try:
@@ -2218,7 +2226,8 @@ class GraphScreen(wx.Window):
         self.ChangeHwFrequency(self.txFreq, self.VFO, 'MouseBtn1', event=event, rx_freq=freq)
       else:
         self.ChangeHwFrequency(freq, self.VFO, 'MouseBtn1', event=event)
-    self.CaptureMouse()
+    if not self.HasCapture():
+      self.CaptureMouse()
   def OnLeftUp(self, event):
     if self.HasCapture():
       self.ReleaseMouse()
@@ -2231,7 +2240,7 @@ class GraphScreen(wx.Window):
       mouse_x, mouse_y = self.GetMousePosition(event)
       if wx.GetKeyState(wx.WXK_SHIFT):
         mouse_x -= self.filter_center * self.data_width / sample_rate
-      if conf.mouse_tune_method:		# Mouse motion changes the VFO frequency
+      if False: #conf.mouse_tune_method:		# Mouse motion changes the VFO frequency
         x = (mouse_x - self.mouse_x)	# Thanks to VK6JBL
         self.mouse_x = mouse_x
         freq = float(x) * sample_rate / self.data_width
@@ -3821,16 +3830,15 @@ class App(wx.App):
       self.std_out_err.Show(False)
     else:
       self.std_out_err.Show(True)
+    wClient, hClient = frame.GetClientSize()
     #w, h = frame.GetSize().Get()
-    #ww, hh = frame.GetClientSizeTuple()
-    #print ('Main frame: size', w, h, 'client', ww, hh)
+    #print ('Main frame: size', w, h, 'client', wClient, hClient)
     # Find the data width from a list of preferred sizes; it is the width of returned graph data.
     # The graph_width is the width of data_width that is displayed.
+    # The total width of the graph is graph_width + self.graph_borders
     if conf.window_width > 0:
-      #wFrame, h = frame.GetClientSize().Get()				# client window width
-      wFrame = conf.window_width - 15	# Thanks to Nick Abramenko, RA3PKJ 
       graph = GraphScreen(frame, self.width//2, self.width//2, None)	# make a GraphScreen to calculate borders
-      self.graph_width = wFrame - (graph.width - graph.graph_width)		# less graph borders equals actual graph_width
+      self.graph_width = wClient - (graph.width - graph.graph_width)		# less graph borders equals actual graph_width
       graph.Destroy()
       del graph
       if self.graph_width % 2 == 1:		# Both data_width and graph_width are even numbers
@@ -4706,7 +4714,7 @@ class App(wx.App):
     b.char_shortcut = 'l'
     self.MakeAccel(b)
     self.splitButton = WrapMenu(b, self.split_menu)
-    if conf.mouse_tune_method:		# Mouse motion changes the VFO frequency
+    if False: #conf.mouse_tune_method:		# Mouse motion changes the VFO frequency
       self.splitButton.Enable(False)
     left_row3.append(self.splitButton)
     b = QuiskCheckbutton(frame, self.OnBtnFDX, 'FDX', color=conf.color_test)
@@ -5873,16 +5881,31 @@ class App(wx.App):
     The hardware will reply with the updated frequencies which may be different
     from those requested; use and display the returned tune and vfo.
     """
+    #print ("ChangeHW", source, tune, vfo, vfo + tune)
     if not self.split_rxtx:
       self.rxFreq = tune	# rxFreq must be correct before the call to Hardware.ChangeFrequency()
     elif rx_freq is not None:
       self.rxFreq = rx_freq
+    rx_offset = self.rxFreq - tune
     if self.screen == self.bandscope_screen:
       freq = vfo + tune
       tune = freq % 10000
       vfo = freq - tune
-    tune, vfo = Hardware.ChangeFrequency(vfo + tune, vfo, source, band, event)
-    self.ChangeDisplayFrequency(tune - vfo, vfo, rx_freq is not None)
+      tune, vfo = Hardware.ChangeFrequency(vfo + tune, vfo, source, band, event)
+      self.ChangeDisplayFrequency(tune - vfo, vfo, rx_freq is not None)
+    elif conf.fixed_tune_offset:
+      # Tune with the VFO and keep a constant audio offset from the center. Tx tune is always conf.fixed_tune_offset.
+      tune_freq = vfo + tune
+      self.rxFreq = conf.fixed_tune_offset + rx_offset
+      if source == "BtnUpDown":
+        tune_freq = vfo + conf.fixed_tune_offset
+      else:
+        vfo = tune_freq - conf.fixed_tune_offset
+      tune_freq, vfo = Hardware.ChangeFrequency(tune_freq, vfo, source, band, event)
+      self.ChangeDisplayFrequency(tune_freq - vfo, vfo, True)
+    else:
+      tune, vfo = Hardware.ChangeFrequency(vfo + tune, vfo, source, band, event)
+      self.ChangeDisplayFrequency(tune - vfo, vfo, rx_freq is not None)
   def ChangeDisplayFrequency(self, tune, vfo, new_rxfreq=False):
     'Change the frequency displayed by Quisk'
     change = 0
@@ -6379,7 +6402,7 @@ class App(wx.App):
       for client in self.hamlib_clients:	# Service existing clients
         if not client.Process():		# False return indicates a closed connection; remove the handler for this client
           self.hamlib_clients.remove(client)
-          # print 'Remove', client.address
+          # print ('Remove', client.address)
           break
   def OnKeyHook(self, event):
     event.Skip()
