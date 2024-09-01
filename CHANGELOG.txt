@@ -1,3 +1,9 @@
+Quisk Version 4.2.38  September 2024
+====================================
+This is a bugfix release. I fixed a bug in the Hamlib serial port when using a physical TTY instead
+of a pseudo-tty. The Hamlib ZZFA command now changes the receive frequency instead of the transmit
+frequency. I fixed some window sizing issues.
+
 Quisk Version 4.2.37  August 2024
 =================================
 Quisk now has a new option "Fixed tune offset" on the Config/radio/Options screen. This is meant for

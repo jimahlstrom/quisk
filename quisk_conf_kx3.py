@@ -29,9 +29,10 @@ class Hardware(BaseHardware):
     # self.hamlib_rigctld_port = 4532		# Standard rigctld control port
     # self.hamlib_poll_seconds = 0.2		# Time interval to poll for changes
   def open(self):
+    # Thanks to Peter, DC6AR, Rig ID changed from 229 to 2045.
     ret = BaseHardware.open(self)
     if not self.hamlib_connected:	# rigctld is not started.  Try to start it.
-      os.system("rigctld -m 229 -r /dev/ttyUSB0 -s 4800 & ")	# Check the baud rate menu setting
+      os.system("rigctld -m 2045 -r /dev/ttyUSB0 -s 4800 & ")	# Check the baud rate menu setting
       # If this fails, start rigctld by hand.
     return ret
 

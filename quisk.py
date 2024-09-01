@@ -334,6 +334,7 @@ class HamlibHandlerSerial:
     self.public_name = public_name	# the public name for the serial port
     self.tune_step = 1000
     if sys.platform == 'win32' or public_name.startswith("/dev/"):
+      self.port_is_mod_serial = True	# self.port is from the serial module
       try:
         import serial
       except:
@@ -346,6 +347,7 @@ class HamlibHandlerSerial:
           print ("The serial port %s could not be opened." % public_name)
     else:
       import tty
+      self.port_is_mod_serial = False	# self.port is a file descriptor
       if os.path.lexists(public_name):
         try:
           os.remove(public_name)
@@ -369,7 +371,7 @@ class HamlibHandlerSerial:
   def open(self):
     return
   def close(self):
-    if sys.platform == 'win32':
+    if self.port_is_mod_serial:
       if self.port:
         self.port.close()
       self.port = None
@@ -382,7 +384,7 @@ class HamlibHandlerSerial:
   def Read(self):
     if self.port is None:
       return
-    if sys.platform == 'win32':
+    if self.port_is_mod_serial:
       text = self.port.read(99)
       if not isinstance(text, Q3StringTypes):
         text = text.decode('utf-8')
@@ -433,22 +435,14 @@ class HamlibHandlerSerial:
       return
     if isinstance(data, Q3StringTypes):
       data = data.encode('utf-8', errors='ignore')
-    if sys.platform == 'win32':
+    if self.port_is_mod_serial:
       self.port.write(data)
     else:
       r, w, x = select.select((), (self.port,), (), 0)
       if w:
         os.write(self.port, data)
-  def set_frequency(self, freq):
-    tune = freq - self.app.VFO
-    d = self.app.sample_rate * 45 // 100
-    if -d <= tune <= d:  # Frequency is on-screen
-      vfo = self.app.VFO
-    else:  # Change the VFO
-      vfo = (freq // 5000) * 5000 - 5000
-      tune = freq - vfo
-    self.app.BandFromFreq(freq)
-    self.app.ChangeHwFrequency(tune, vfo, 'FreqEntry')
+  def set_frequency(self, freq):	# This changes the Rx frequency
+    self.app.ChangeRxTxFrequency(freq, None)
     if HAMLIB_DEBUG: print("New Freq rx,tx", self.app.txFreq + self.app.VFO, self.app.rxFreq + self.app.VFO)
   def ZZAC(self, cmd, data, length):  # Set or read tune steps
     if length == 0:
@@ -2643,7 +2637,7 @@ class WaterfallScreen(wx.SplitterWindow):
     self.y_zero = conf.waterfall_y_zero
     self.zoom_control = 0
     wx.SplitterWindow.__init__(self, frame)
-    self.SetSizeHints(width, -1, width)
+    self.SetSizeHints(width, -1)
     self.SetSashGravity(0.50)
     self.SetMinimumPaneSize(1)
     self.SetSize((width, conf.waterfall_graph_size + 100))	# be able to set sash size
@@ -2997,7 +2991,7 @@ class MultiReceiverScreen(wx.SplitterWindow):
     self.rx_zero = self.graph
     self.Initialize(self.rx_zero)
     self.waterfall.Hide()
-    self.SetSizeHints(self.width, -1, self.width)
+    self.SetSizeHints(self.width, -1)
     # Calculate control width
     rx_btn = QuiskPushbutton(self, None, "Rx 8....", style=wx.BU_EXACTFIT)
     self.rx_btn_width, self.rx_btn_height = rx_btn.GetSize().Get()
@@ -3830,9 +3824,10 @@ class App(wx.App):
       self.std_out_err.Show(False)
     else:
       self.std_out_err.Show(True)
-    wClient, hClient = frame.GetClientSize()
-    #w, h = frame.GetSize().Get()
-    #print ('Main frame: size', w, h, 'client', wClient, hClient)
+    wClient, hClient = self.main_frame.GetClientSize()
+    wFrame, hFrame = self.main_frame.GetSize()
+    main_border_w = wFrame - wClient
+    #print ('Main frame: size', wFrame, hFrame, 'client', wClient, hClient, 'border', main_border_w)
     # Find the data width from a list of preferred sizes; it is the width of returned graph data.
     # The graph_width is the width of data_width that is displayed.
     # The total width of the graph is graph_width + self.graph_borders
@@ -3963,14 +3958,14 @@ class App(wx.App):
     frame.SetSizer(vertBox)
     # Add the screens
     vertBox.Add(self.config_screen, 1, wx.EXPAND)
-    vertBox.Add(self.multi_rx_screen, 1)
-    vertBox.Add(self.scope, 1)
-    vertBox.Add(self.bandscope_screen, 1)
-    vertBox.Add(self.filter_screen, 1)
+    vertBox.Add(self.multi_rx_screen, 1, wx.EXPAND)
+    vertBox.Add(self.scope, 1, wx.EXPAND)
+    vertBox.Add(self.bandscope_screen, 1, wx.EXPAND)
+    vertBox.Add(self.filter_screen, 1, wx.EXPAND)
     if self.rate_audio_fft:
-      vertBox.Add(self.audio_fft_screen, 1)
-    vertBox.Add(self.help_screen, 1)
-    vertBox.Add(self.station_screen)
+      vertBox.Add(self.audio_fft_screen, 1, wx.EXPAND)
+    vertBox.Add(self.help_screen, 1, wx.EXPAND)
+    vertBox.Add(self.station_screen, 0, wx.EXPAND)
     # Add the spacer
     vertBox.Add(Spacer(frame), 0, wx.EXPAND)
     # Add the sizer for the controls
@@ -3983,15 +3978,17 @@ class App(wx.App):
     vertBox.AddSpacer(5)		# Thanks to Christof, DJ4CM
     # End of vertical box.
     self.MakeButtons(frame, gbs)
-    minw = width = self.graph.width
-    maxw = maxh = -1
-    minh = 100
     if conf.window_width > 0:
-      minw = width = maxw = conf.window_width
+      minw = maxw = conf.window_width
+    else:
+      minw = self.graph.width + main_border_w
+      maxw = -1
     if conf.window_height > 0:
       minh = maxh = self.height = conf.window_height
+    else:
+      minh = 100
+      maxh = -1
     self.main_frame.SetSizeHints(minw, minh, maxw, maxh)
-    self.main_frame.SetClientSize(wx.Size(width, self.height))
     if hasattr(Hardware, 'pre_open'):       # pre_open() is called before open()
       Hardware.pre_open()
     if self.local_conf.GetWidgets(self, Hardware, conf, frame, gbs, vertBox):
