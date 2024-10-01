@@ -120,6 +120,8 @@ class Hardware:
     self.application.bandscope_clock = clock
   #def PollCwKey(self):  # Optional. Called frequently by the sound thread to check the CW key status.
   #  pass        # Do not define if not needed.
+  #def PollGuiControl(self):  # Optional. Called frequently by the GUI thread to change GUI settings (PTT etc.)
+  #  pass        # Do not define if not needed.
   def StartSamples(self):	# Quisk calls this from the sound thread to start sending samples.
     # If you return a string, it replaces the string returned from hardware open()
     pass

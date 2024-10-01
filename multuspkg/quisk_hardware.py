@@ -91,6 +91,8 @@ class Hardware(BaseHardware):
     conf.si570_direct_control = False
     conf.si570_xtal_freq = 114285000
     conf.repeater_delay = 0.25
+    self.ptt_count = 200 
+    self.ptt_on = 0
     BaseHardware.__init__(self, app, conf)
     QS.set_sparams(multus_cw_samples=1)
     self.use_softrock = True
@@ -104,6 +106,13 @@ class Hardware(BaseHardware):
       self.usb_dev.ctrl_transfer(OUT, address, self.si570_i2c_address + 0x700, 0, message)
     if DEBUG:
       print ("USB send to 0x%X" % address, message)
+  def TransferIn(self, address, length):
+    if self.usb_dev:
+      recv = self.usb_dev.ctrl_transfer(IN, address, self.si570_i2c_address + 0x700, 0, length)
+      if DEBUG:
+        print ("USB receive from 0x%X" % address, recv)
+      return recv
+    return None
   def open(self):
     text = BaseHardware.open(self)
     self.InitKeyer()
@@ -120,8 +129,20 @@ class Hardware(BaseHardware):
         print ("Mode is not CW")
     self.TransferOut(0x70, cw_mode)
     return ret
-  def PollCwKey(self):  # Called frequently by Quisk to check the CW key status
+  def PollCwKey(self):  # Called frequently from the sound thread to check the CW key status
     return	# Quisk is always in Rx
+  def PollGuiControl(self):	# Called frequently from the GUI thread
+    self.ptt_count -= 1
+    if self.ptt_count <= 0:
+      self.ptt_count = 200 
+      reply = self.TransferIn(0xA5, 1)
+      if DEBUG:
+        print ("PollGuiControl got", reply)
+      if reply:
+        ptt = reply[0]	# This is 255 for error
+        if ptt in (0, 1) and ptt != self.ptt_on:
+          self.ptt_on = ptt
+          self.application.pttButton.SetValue(ptt, True)
   def InitKeyer(self):
     # Initialize the keyer parameters
     conf = self.conf

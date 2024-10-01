@@ -1,3 +1,10 @@
+Quisk Version 4.2.39  October 2024
+==================================
+I added an optional Hardware method PollGuiControl(self). If you define this in your Hardware file,
+the GUI thread will call it frequently. It can be used to set PTT from your hardware.
+
+I am trying to work around a wxPython quirk that causes mouse wheel tuning to fail. Please test.
+
 Quisk Version 4.2.38  September 2024
 ====================================
 This is a bugfix release. I fixed a bug in the Hamlib serial port when using a physical TTY instead

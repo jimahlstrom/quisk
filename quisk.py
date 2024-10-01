@@ -2123,7 +2123,7 @@ class GraphScreen(wx.Window):
     """For mouse clicks in our display, translate to our screen coordinates."""
     mouse_x, mouse_y = event.GetPosition()
     win = event.GetEventObject()
-    if win is not self:
+    if win and win is not self:
       x, y = win.GetPosition().Get()
       mouse_x += x
       mouse_y += y
@@ -3524,6 +3524,7 @@ class App(wx.App):
     if not os.path.isdir(self.QuiskFilesDir):
       self.QuiskFilesDir = DefaultConfigDir
     self.std_out_err = StdOutput(self)
+    self.std_out_err.Logfile("WxPython " + wx.version())
     QS.set_params(quisk_is_vna=0)	# We are not the VNA program
     # Read in configuration from the selected radio
     self.BandPlan = []
@@ -3614,6 +3615,7 @@ class App(wx.App):
         setattr(conf, 'widgets_file_name',  '')
     Hardware = self.Hardware
     self.use_fast_heart_beat = hasattr(Hardware, "FastHeartBeat")
+    self.poll_gui_control = hasattr(Hardware, "PollGuiControl")
     # Initialization - may be over-written by persistent state
     self.local_conf.Initialize()
     self.clip_time0 = 0		# timer to display a CLIP message on ADC overflow
@@ -6455,6 +6457,8 @@ class App(wx.App):
       self.hamlib_com2_handler.Process()
     if self.use_fast_heart_beat:
       Hardware.FastHeartBeat()
+    if self.poll_gui_control:
+      Hardware.PollGuiControl()
     if conf.do_repeater_offset:
       hold = QS.tx_hold_state(-1)
       if hold == 2:	# Tx is being held for an FM repeater TX frequency shift
