@@ -402,6 +402,8 @@ class Hardware(BaseHardware):
     if do_tx:
       try:
         self.rx_udp_socket.send(s)
+        if DEBUG:
+          self.PrintStatus(' Send', self.want_udp_status)
       except:
         pass
   def SetVNA(self, key_down=None, vna_start=None, vna_stop=None, vna_count=None, do_tx=False):

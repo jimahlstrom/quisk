@@ -1434,12 +1434,8 @@ class ConfigStatus(wx.ScrolledCanvas):
     self.MakeRow2("Sample interrupts", self.interrupts, cfile)
     self.MakeRow2("Microphone or DGT level dB", level, qfile)
     self.MakeRow2("FFT number of points", self.fft_size, err_msg)
-    if conf.dxClHost:		# connection to dx cluster
-      nSpots = len(application.dxCluster.dxSpots)
-      if nSpots > 0:
-        msg = str(nSpots) + ' DX spot' + ('' if nSpots==1 else 's') + ' received from ' + application.dxCluster.getHost()
-      else:
-        msg = "No DX Cluster data from %s" % conf.dxClHost
+    if application.dxCluster:
+      msg = application.dxCluster.dxStatus()
       self.MakeRow2("FFT number of errors", self.fft_error, msg)
     else:
       self.MakeRow2("FFT number of errors", self.fft_error)
@@ -3991,6 +3987,7 @@ class App(wx.App):
       minh = 100
       maxh = -1
     self.main_frame.SetSizeHints(minw, minh, maxw, maxh)
+    self.main_frame.SetClientSize(wx.Size(width, self.height))
     if hasattr(Hardware, 'pre_open'):       # pre_open() is called before open()
       Hardware.pre_open()
     if self.local_conf.GetWidgets(self, Hardware, conf, frame, gbs, vertBox):
@@ -4030,7 +4027,6 @@ class App(wx.App):
     if conf.dxClHost:
       # create DX Cluster and register listener for change notification
       self.dxCluster = dxcluster.DxCluster()
-      self.dxCluster.setListener(self.OnDxClChange)
       self.dxCluster.start()
     # Create shortcut keys for buttons
     if conf.button_layout == 'Large screen':
@@ -4381,8 +4377,6 @@ class App(wx.App):
                 conf.tx_ip, conf.tx_audio_port,
                 conf.mic_sample_rate, conf.mic_channel_I, conf.mic_channel_Q,
 				0.7, conf.mic_playback_rate)
-  def OnDxClChange(self):
-    self.station_screen.Refresh()
   def OnIdle(self, event):
     if self.screen:
       self.screen.OnIdle(event)
@@ -6639,6 +6633,9 @@ class App(wx.App):
           self.ChangeDisplayFrequency(tune - vfo, vfo)
         self.FldigiPoll()
         self.HamlibPoll()
+        if self.dxCluster:
+          if self.dxCluster.Poll():
+            self.station_screen.Refresh()
       if self.timer - self.slowheart_time0 > 0.5:
         self.slowheart_time0 = self.timer
         if self.w_phase:

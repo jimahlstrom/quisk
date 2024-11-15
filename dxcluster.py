@@ -1,9 +1,9 @@
-from __future__ import absolute_import
 # This code was contributed by Christof, DJ4CM.  Many Thanks!!
+# Modified November 2024 by N2ADR to remove deprecated telnetlib module.
 
 import threading
+import socket
 import time
-import telnetlib
 import quisk_conf_defaults as conf
 
 class DxEntry:
@@ -81,61 +81,109 @@ class DxEntry:
   
 class DxCluster(threading.Thread):
   def __init__(self):
-    self.do_init = 1
+    self.error = 'Starting'
+    self.dxSpots = []
     threading.Thread.__init__(self)
     self.doQuit = threading.Event()
-    self.dxSpots = []
     self.doQuit.clear()
+    self.dxLock = threading.Lock()
+    self.addr = conf.dxClHost + ':' + str(conf.dxClPort)
+    self.msg_no_spots = "No DX Cluster data from " + self.addr
+    self.msg_one_spot = '1 DX spot received from ' + self.addr
+    self.msg_spots =    ' DX spots received from ' + self.addr
     
   def run(self):
-    self.telnetInit()
     self.telnetConnect()
+    if self.error:
+      self.sock.close()
+      return
     while not self.doQuit.isSet():
       try:
-          self.telnetRead()
+        by = self.sock.recv(1024)
+      except TimeoutError:
+        continue
       except:
-        self.tn.close()
-        time.sleep(20)
+        by = b''
+      if by:
+        with self.dxLock:
+          self.bytes += by
+      else:
+        self.sock.close()
+        self.error = "Restarting " + self.addr
+        time.sleep(2)
         if not self.doQuit.isSet():
           self.telnetConnect()
-    self.tn.close()
-      
-  def setListener (self, listener):  
-    self.listener = listener
+          if self.error:
+            self.sock.close()
+            return
+    self.sock.close()
         
-  def telnetInit(self):
-    self.tn = telnetlib.Telnet()
-      
   def telnetConnect(self):    
+    self.bytes = bytearray(0)
+    self.error = 'Starting'
+    self.sock = socket.socket()
+    self.sock.settimeout(20)
+    try:
+      self.sock.connect( (conf.dxClHost, conf.dxClPort) )
+    except:
+      self.error = "Failed to connect to " + self.addr
+      return
+    self.sock.settimeout(1)
     for i in range(10):
       try:
-        self.tn.open(conf.dxClHost, conf.dxClPort, 10)
-        self.tn.read_until(b"login:", 10)
-        self.tn.write(conf.user_call_sign.encode('utf-8', errors='ignore') + b"\n")		# user_call_sign may be Unicode
-        break
+        self.bytes += self.sock.recv(1024)
       except:
-        time.sleep(0.5)
+        pass
+      if b"login:" in self.bytes:
+        break
+    else:
+      self.error = 'No "login:" prompt from ' + self.addr
+      return
+    self.sock.sendall(conf.user_call_sign.encode('utf-8', errors='ignore') + b"\r\n")
     if conf.dxClPassword:
-      self.tn.read_until(b"Password: ")
-      self.tn.write(conf.dxClPassword.encode('utf-8', errors='ignore') + b"\n")
+      for i in range(10):
+        try:
+          self.bytes += self.sock.recv(1024)
+        except:
+          pass
+        if b"Password:" in self.bytes:
+          break
+      else:
+        self.error = 'No "Password:" prompt from ' + self.addr
+        return
+      self.sock.sendall(conf.dxClPassword.encode('utf-8', errors='ignore') + b"\r\n")
+    self.error = ''
+    self.bytes = bytearray(0)
 
-  def telnetRead(self):
-    message = self.tn.read_until(b'\n', 60).decode(encoding='utf-8', errors='replace')
-    if self.doQuit.isSet() == False:
-      dxEntry = DxEntry();
-      if dxEntry.parseMessage(message):
-        for i, listElement in enumerate(self.dxSpots):
-          if (listElement.equal(dxEntry)):
-            listElement.join (dxEntry)
-            return
-          if listElement.isExpired():
-            del (self.dxSpots[i])
-        self.dxSpots.append(dxEntry)
-        if self.listener:
-          self.listener()
-        
-  def getHost(self):
-    return self.tn.host + ':' + str(self.tn.port)
+  def Poll(self):
+    with self.dxLock:
+      index = self.bytes.find(b"\n")
+      if index >= 0:
+        message = self.bytes[0:index + 1]
+        self.bytes = self.bytes[index + 1:]
+      else:
+        return
+    message = message.decode(encoding='utf-8', errors='replace')
+    dxEntry = DxEntry()
+    if dxEntry.parseMessage(message):
+      for i, listElement in enumerate(self.dxSpots):
+        if (listElement.equal(dxEntry)):
+          listElement.join (dxEntry)
+          return True
+        if listElement.isExpired():
+          del (self.dxSpots[i])
+      self.dxSpots.append(dxEntry)
+      return True
         
   def stop(self):
     self.doQuit.set()
+
+  def dxStatus(self):
+    if self.error:
+      return self.error
+    nSpots = len(self.dxSpots)
+    if nSpots == 0:
+      return self.msg_no_spots
+    elif nSpots == 1:
+      return self.msg_one_spot
+    return str(nSpots) + self.msg_spots

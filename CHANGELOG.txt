@@ -1,3 +1,11 @@
+Quisk Version 4.2.40  November 2024
+===================================
+Python 3.13 eliminated the telnetlib module, so I wrote a replacement. I fixed a bug in window sizing.
+If you use the Dx Cluster feature, please report any problems. Dx Cluster used to use the telnetlib module
+but is now new code.
+
+I updated the install to Python 3.13. Please report any problems with Python 3.13.
+
 Quisk Version 4.2.39  October 2024
 ==================================
 I added an optional Hardware method PollGuiControl(self). If you define this in your Hardware file,
