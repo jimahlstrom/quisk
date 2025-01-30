@@ -48,6 +48,7 @@ name2format = {
 
 # Increasing the software version will display a message to re-read the soapy device.
 soapy_software_version = 3
+wxpython_gtk3_bug = 0
 
 def FormatKhz(dnum):	# Round to 3 decimal places; remove ending ".000"
   t = "%.3f" % dnum
@@ -384,10 +385,20 @@ class Configuration:
         app.bottom_widgets = dct['BottomWidgets'](app, hardware, conf, frame, gbs, vertBox)
     return True
   def OnPageChanging(self, event):	# Called when the top level page changes (not RadioNotebook pages)
+    global wxpython_gtk3_bug
     event.Skip()
     notebook = event.GetEventObject()
     index = event.GetSelection()
     page = notebook.GetPage(index)
+    if sys.platform != 'win32':		# Work around a bug in wxPython 4.2.1 and gtk3
+      w, h = application.main_frame.GetSize()	# Change main window size by +/- one pixel to recalculate sizes
+      if wxpython_gtk3_bug:
+        wxpython_gtk3_bug = 0
+        h += 1
+      else:
+        wxpython_gtk3_bug = 1
+        h -= 1
+      application.main_frame.SetSize((w, h))
     if isinstance(page, RadioNotebook):
       if not page.pages:
         page.MakePages()
@@ -419,6 +430,14 @@ class Configuration:
     elif udp > 0:
       return 'HiQSDR'
     return 'SoftRock USB'
+  def FindNotebookPage(self, name):
+    for index in range(self.radios_page_start, self.notebk.GetPageCount()):
+      tab_text = self.notebk.GetPageText(index)
+      if tab_text[0] == '*':
+        tab_text = tab_text[1:-1]
+      if tab_text == name:
+        return index
+    return None
   def AddRadio(self, radio_name, typ):
     radio_dict = {}
     radio_dict['hardware_file_type'] = typ
@@ -435,13 +454,24 @@ class Configuration:
     page = RadioNotebook(self.notebk, radio_name)
     self.notebk.AddPage(page, radio_name)
     return True
+  def CopyRadio(self, old_name, new_name):
+    radio_dict = {}
+    index = Settings[2].index(old_name)
+    radio_dict.update(Settings[3][index])
+    Settings[2].append(new_name)
+    Settings[3].append(radio_dict)
+    page = RadioNotebook(self.notebk, new_name)
+    self.notebk.AddPage(page, new_name)
+    return True
   def RenameRadio(self, old, new):
-    index = Settings[2].index(old)
-    n = self.radios_page_start + index
+    n = self.FindNotebookPage(old)
+    if n is None:
+      return
     if old == Settings[1]:
       self.notebk.SetPageText(n, "*%s*" % new)
     else:
       self.notebk.SetPageText(n, new)
+    index = Settings[2].index(old)
     Settings[2][index] = new
     self.notebk.GetPage(n).NewName(new)
     if old == "ConfigFileRadio":
@@ -452,12 +482,10 @@ class Configuration:
     index = Settings[2].index(name)
     del Settings[2][index]
     del Settings[3][index]
-    try:
-      n = self.radios_page_start + index
+    n = self.FindNotebookPage(name)
+    if n is not None:
       self.notebk.DeletePage(n)
-    except:
-      pass
-    return True
+      return True
   def GetRadioDict(self, radio_name=None):	# None radio_name means the current radio
     if radio_name:
       index = Settings[2].index(radio_name)
@@ -1295,6 +1323,7 @@ class RadioNotebook(wx.Notebook):	# The second-level notebook for each radio nam
     self.SetBackgroundColour(parent.bg_color)
     self.radio_name = radio_name
     self.pages = []
+    self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanging)
   def MakePages(self):
     radio_name = self.radio_name
     radio_dict = local_conf.GetRadioDict(radio_name)
@@ -1325,6 +1354,20 @@ class RadioNotebook(wx.Notebook):	# The second-level notebook for each radio nam
     self.radio_name = new_name
     for page in self.pages:
       page.radio_name = new_name
+  def OnPageChanging(self, event):
+    global wxpython_gtk3_bug
+    event.Skip()
+    index = event.GetSelection()
+    page = self.GetPage(index)
+    if sys.platform != 'win32':		# Work around a bug in wxPython 4.2.1 and gtk3
+      w, h = application.main_frame.GetSize()	# Change main window size by +/- one pixel to recalculate sizes
+      if wxpython_gtk3_bug:
+        wxpython_gtk3_bug = 0
+        h += 1
+      else:
+        wxpython_gtk3_bug = 1
+        h -= 1
+      application.main_frame.SetSize((w, h))
 
 class ChoiceCombo(wx.Choice):
   text_for_blank = "-blank-"
@@ -1439,7 +1482,13 @@ class ComboCtrl(wxcombo.ComboCtrl):
         wm = w
     wm += charx * 5
     self.SetSizeHints(wm, self.height, 9999, self.height)
+  def SetValue(self, value):
+    wxcombo.ComboCtrl.SetValue(self, value)
+    self.SetBackgroundColour(self.bgColor)
+    self.Refresh()
   def SetSelection(self, n):	# Set text to item in list box. Name conflict with wxcombo.ComboCtrl.
+    self.SetBackgroundColour(self.bgColor)
+    self.Refresh()
     try:
       text = self.choices[n]
     except IndexError:
@@ -2328,9 +2377,9 @@ class ControlMixin:
     else:
       return value
 
-class BaseWindow(wx.ScrolledCanvas, ControlMixin):
+class BaseWindow(wx.ScrolledWindow, ControlMixin):
   def __init__(self, parent):
-    wx.ScrolledCanvas.__init__(self, parent)
+    wx.ScrolledWindow.__init__(self, parent)
     ControlMixin.__init__(self, parent)
 
 class ConfigConfig(BaseWindow):
@@ -2653,17 +2702,21 @@ class Radios(BaseWindow):	# The "Radios" first-level page
   def __init__(self, parent):
     BaseWindow.__init__(self, parent)
     self.SetBackgroundColour(parent.bg_color)
-    self.num_cols = 8
+    self.num_cols = 5
     self.radio_name = None
-    self.cur_radio_text = self.AddTextL(1, 'xx', self.num_cols - 1)
-    self.SetCurrentRadioText()
+    self.index = 0
+    txt = 'Each "radio" is a block of settings that describes a radio to use with Quisk.'
+    self.AddTextL(1, txt, self.num_cols - 1)
     self.NextRow()
     self.NextRow()
-    item = self.AddTextL(1, "When Quisk starts, use the radio")
+    self.radio_buttons = []
+    rb = self.AddRadioButton(1, "When Quisk starts, use the radio", self.NewTop, start=True)
+    rb.SetValue(True)
     self.start_radio = self.AddComboCtrl(2, 'big_radio_name', choices=[], no_edit=True)
     self.start_radio.handler = self.OnChoiceStartup
+    self.radio_buttons.append((rb, self.start_radio))
     self.NextRow()
-    item = self.AddTextL(1, "Add a new radio with the general type")
+    rb = self.AddRadioButton(1, "Add a new radio with the general type", self.NewTop)
     choices = []
     for name, data in local_conf.receiver_data:
       choices.append(name)
@@ -2671,30 +2724,60 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     self.add_type = self.AddComboCtrl(2, '', choices=choices, no_edit=True)
     self.add_type.SetSelection(0)
     item = self.AddTextL(3, "and name the new radio")
-    self.add_name = self.AddComboCtrl(4, '', choices=["My Radio", "SR with XVtr", "SoftRock"])
-    item = self.AddPushButton(5, "Add", self.OnBtnAdd)
+    self.add_name = self.AddComboCtrl(4, '', choices=["My Radio", "Transverter", "SoftRock", "HL2"])
+    self.radio_buttons.append((rb, self.add_type, self.add_name))
     self.NextRow()
-    item = self.AddTextL(1, "Rename the radio named")
+    rb = self.AddRadioButton(1, "Add a new radio copied from radio", self.NewTop)
+    self.add_from = self.AddComboCtrl(2, 'big_radio_name', choices=[], no_edit=True)
+    item = self.AddTextL(3, "and name the new radio")
+    self.add_name2 = self.AddComboCtrl(4, '', choices=["My Radio", "Transverter", "SoftRock", "HL2"])
+    self.radio_buttons.append((rb, self.add_from, self.add_name2))
+    self.NextRow()
+    rb = self.AddRadioButton(1, "Rename the radio named", self.NewTop)
     self.rename_old = self.AddComboCtrl(2, 'big_radio_name', choices=[], no_edit=True)
     item = self.AddTextL(3, "to the new name")
-    self.rename_new = self.AddComboCtrl(4, '', choices=["My Radio", "SR with XVtr", "SoftRock"])
-    item = self.AddPushButton(5, "Rename", self.OnBtnRename)
+    self.rename_new = self.AddComboCtrl(4, '', choices=["My Radio", "Transverter", "SoftRock", "HL2"])
+    self.radio_buttons.append((rb, self.rename_old, self.rename_new))
     self.NextRow()
-    item = self.AddTextL(1, "Delete the radio named")
+    rb = self.AddRadioButton(1, "Delete the radio named", self.NewTop)
     self.delete_name = self.AddComboCtrl(2, 'big_radio_name', choices=[], no_edit=True)
-    item = self.AddPushButton(3, "Delete", self.OnBtnDelete)
+    self.radio_buttons.append((rb, self.delete_name))
     self.NextRow()
-    self.FitInside()
-    self.SetScrollRate(1, 1)
+    self.NextRow()
+    self.apply_btn = self.AddPushButton(3, "Apply", self.OnBtnApply)
     self.NewRadioNames()
-  def SetCurrentRadioText(self):
-    radio_dict = local_conf.GetRadioDict(self.radio_name)
-    radio_type = radio_dict['hardware_file_type']
-    if Settings[1] == "ConfigFileRadio":
-      text = 'The current radio is ConfigFileRadio, so all settings come from the config file.  The hardware type is %s.' % radio_type
+    self.NewTop()
+    self.SetScrollRate(1, 1)
+  def NewTop(self, event=None):
+    if event:
+      btn = event.GetEventObject()
+    else:	# set first button
+      btn = self.radio_buttons[0][0]
+    for i in range(len(self.radio_buttons)):
+      data = self.radio_buttons[i]
+      rb = data[0]
+      if rb == btn:
+        self.index = i
+      for c in data[1:]:
+        c.Enable(rb == btn)
+    if self.index == 0:
+      self.apply_btn.Enable(False)
     else:
-      text = "Quisk is running with settings from the radio %s.  The hardware type is %s." % (Settings[1], radio_type)
-    self.cur_radio_text.SetLabel(text)
+      self.apply_btn.Enable(True)
+  def OnBtnApply(self, event):
+    index = self.index
+    ok = False
+    if index == 1:	# add from hardware type
+      ok = self.OnBtnAdd()
+    elif index == 2:	# add from existing radio
+      ok = self.OnBtnCopy()
+    elif index == 3:	# rename
+      ok = self.OnBtnRename()
+    elif index == 4:	# delete
+      ok = self.OnBtnDelete()
+    if ok:
+      self.radio_buttons[0][0].SetValue(True)
+      self.NewTop()
   def DuplicateName(self, name):
     if name in Settings[2] or name == "ConfigFileRadio":
       dlg = wx.MessageDialog(self, "The name already exists.  Please choose a different name.",
@@ -2703,34 +2786,39 @@ class Radios(BaseWindow):	# The "Radios" first-level page
       dlg.Destroy()
       return True
     return False
-  def OnBtnAdd(self, event):
+  def OnBtnAdd(self):
     name = self.add_name.GetValue().strip()
     if not name or self.DuplicateName(name):
       return
     self.add_name.SetValue('')
     typ = self.add_type.GetValue().strip()
     if local_conf.AddRadio(name, typ):
-      if Settings[0] != "Ask me":
-        Settings[0] = name
       self.NewRadioNames()
       local_conf.settings_changed = True
-  def OnBtnRename(self, event):
+      return True
+  def OnBtnCopy(self):
+    new_name = self.add_name2.GetValue().strip()
+    if not new_name or self.DuplicateName(new_name):
+      return
+    self.add_name2.SetValue('')
+    old_name = self.add_from.GetValue()
+    if local_conf.CopyRadio(old_name, new_name):
+      self.NewRadioNames()
+      local_conf.settings_changed = True
+      return True
+  def OnBtnRename(self):
     old = self.rename_old.GetValue()
     new = self.rename_new.GetValue().strip()
     if not old or not new or self.DuplicateName(new):
       return
     self.rename_new.SetValue('')
     if local_conf.RenameRadio(old, new):
-      if old == 'ConfigFileRadio' and Settings[1] == "ConfigFileRadio":
+      if Settings[1] == old:
         Settings[1] = new
-      elif Settings[1] == old:
-        Settings[1] = new
-      self.SetCurrentRadioText()
-      if Settings[0] != "Ask me":
-        Settings[0] = new
       self.NewRadioNames()
       local_conf.settings_changed = True
-  def OnBtnDelete(self, event):
+      return True
+  def OnBtnDelete(self):
     name = self.delete_name.GetValue()
     if not name:
       return
@@ -2742,6 +2830,7 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     if ret == wx.ID_OK and local_conf.DeleteRadio(name):
       self.NewRadioNames()
       local_conf.settings_changed = True
+      return True
   def OnChoiceStartup(self, ctrl):
     choice = self.start_radio.GetValue()
     if Settings[0] != choice:
@@ -2751,6 +2840,8 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     choices = Settings[2][:]			# can rename any available radio
     self.rename_old.SetItems(choices)
     self.rename_old.SetSelection(0)
+    self.add_from.SetItems(choices)
+    self.add_from.SetSelection(0)
     if "ConfigFileRadio" in choices:	# can not delete ConfigFileRadio
       choices.remove("ConfigFileRadio")
     self.delete_name.SetItems(choices)
@@ -2762,13 +2853,13 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     try:	# Set text in control
       index = choices.index(Settings[0])	# last used radio, or new or renamed radio
     except:
-      num = len(Settings[2])
-      if len == 0:
-        index = 1
-      elif num == 1:
-        index = 0
+      num = len(Settings[2])	# number of radios
+      if num == 0:		# no radios
+        index = 1		# use ConfigFileRadio
+      elif num == 1:		# one radio
+        index = 0		# use the one radio
       else:
-        index = len(choices) - 2
+        index = len(choices) - 2	# use the last radio
       Settings[0] = choices[index]
     self.start_radio.SetSelection(index)
 

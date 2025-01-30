@@ -1,3 +1,9 @@
+Quisk Version 4.2.41  January 2025
+==================================
+I made some improvements to the top-level Config/Radios screen. There is now an option to
+make a new radio by copying settings from an existing radio. I worked around a bug in wxPython
+and gtk3 that caused drawing problems on the config screens. This problem is not present on Windows.
+
 Quisk Version 4.2.40  November 2024
 ===================================
 Python 3.13 eliminated the telnetlib module, so I wrote a replacement. I fixed a bug in window sizing.

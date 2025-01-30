@@ -194,7 +194,7 @@ Quisk is free open source software written in Python and C. It is hosted on the 
 <br>
 <p>
 If you have Python 3 installed on your computer, just continue to use that version.
-<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11 or 3.12.</b>
+<b>On Windows Quisk requires Python 3.8, 3.9, 3.10, 3.11, 3.12 or 3.13.</b>
 If you want to install a more recent version of Python, uninstall the old version first.
 Running multiple versions of Python is possible but can be confusing and is not necessary.
 A Quisk installation is needed for each version of Python you have.
@@ -204,7 +204,7 @@ A Quisk installation is needed for each version of Python you have.
 <p>
 Windows does not include Python, so you must first install a recent version of 64-bit Python 3.
 If you already have 64-bit Python 3 installed, just keep using it.
-<b>On Windows Quisk requires Python 3.8 or 3.9 or 3.10 or 3.11 or 3.12.</b>
+<b>On Windows Quisk requires Python 3.8, 3.9, 3.10, 3.11, 3.12 or 3.13.</b>
 There may be newer versions of Python, but until support is added, use the versions listed above.
 Python is available from <a href="http://www.python.org/">http://www.python.org</a>.
 There is an option to <b>Add Python to PATH</b>. You MUST select
@@ -256,6 +256,7 @@ If you change to that directory you can run Quisk with "pythonw quisk.py".
 <br>
 <p>
 To get started you must tell Quisk what kind of radio hardware you have. Press the Config button and select Radios.
+Add a radio from the list of hardware radios available. Or add the best match.
 Then set your sound devices for that radio; the device for the radio speakers, the microphone and so forth. All configuration
 is (mostly) from the Config button. Ignore old directions and don't bother with a config file.
 </p>
@@ -385,6 +386,7 @@ You run Quisk by running the file quisk.py with python3. For example, "python3 /
 You can create a desktop icon to do that, but the method depends on your version of Linux.
 <b>Never run Quisk with root privelege by using sudo. Fix the permission problem instead.</b>
 To get started you must tell Quisk what kind of radio hardware you have. Press the Config button and select Radios.
+Add a radio from the list of hardware radios available. Or add the best match.
 Then set your sound devices for that radio; the device for the radio speakers, the microphone and so forth. All configuration
 is (mostly) from the Config button. Ignore old directions and don't bother with a config file.
 To uninstall Quisk, just delete the quisk directory.
@@ -532,7 +534,7 @@ When you first install Quisk, you will not have any settings for your radio.
 Press the Config button and go to the Radios screen.
 Then create a radio by specifying the general hardware type and give it a name of your choosing.
 For a Hermes-Lite, specify "Hermes" as the hardware type and call it "HL2" (or some other name).
-Press "Add" and a new tab for your radio will appear. Look through the various settings on the HL2 tab.
+Press "Apply" and a new tab for your radio will appear. Look through the various settings on the HL2 tab.
 The parameters for the radios are stored in the file quisk_settings.json.
 <br>
 <br>
@@ -1493,16 +1495,24 @@ at his site <a href="https://dk1mi.radio/quisk-fldigi/">https://dk1mi.radio/quis
 If your digital program only uses Alsa devices or you don't want to use PulseAudio,
 you can use the ALSA loopback device.
 It works the same way as the Windows VAC. First create the loopback device with this command:
+<br>
+<br>
 <pre>
 sudo modprobe snd-aloop index=19
 </pre>
+<br>
+<p>
 The "index" is the card number, and it is best to use a number higher than your regular cards.
 The loopback device will be gone on the next restart.
 You can create the loopback device every time the system starts, but the way to do that depends on your version of Linux.
 You could add this line to /etc/modprobe.d/alsa-base.conf:
+</p>
+<br>
 <pre>
 options snd-aloop index=19
 </pre>
+<br>
+<p>
 Or you could add snd-aloop to /etc/modules or put the modprobe command in /etc/rc.local instead.
 Restart Linux. Now you can enter "cat /proc/asound/cards" to
 print out your sound cards, and you should see a "Loopback" card listed.
@@ -1517,6 +1527,7 @@ Your audio is now connected and you
 should be able to receive digital signals. Be sure to test your
 transmit signal off the air. You may need to reduce power to
 improve linearity.
+</p>
 <br>
 
 <br>
