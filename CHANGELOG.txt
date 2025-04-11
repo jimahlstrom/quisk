@@ -1,3 +1,9 @@
+Quisk Version 4.2.42  April 2025
+================================
+I fixed a bug in the Kenwood IF CAT command. Thanks Nick!  I moved the Pulse server IP address to the Sound screen.
+I added a CAT method to imitate the Elecraft K4 command set over a TCP port. Quisk now has four CAT controls. To
+make this clearer I added more documentation to the Remote screen.
+
 Quisk Version 4.2.41  January 2025
 ==================================
 I made some improvements to the top-level Config/Radios screen. There is now an option to

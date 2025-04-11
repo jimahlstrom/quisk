@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# All QUISK software is Copyright (C) 2006-2024 by James C. Ahlstrom.
+# All QUISK software is Copyright (C) 2006-2025 by James C. Ahlstrom.
 # This free software is licensed for use under the GNU General Public
 # License (GPL), see http://www.opensource.org.
 # Note that there is NO WARRANTY AT ALL.  USE AT YOUR OWN RISK!!
@@ -585,11 +585,18 @@ class HamlibHandlerSerial:
     mode = self.app.mode
     info = cmd
     info += "%011d" % (self.app.rxFreq + self.app.VFO)	# frequency, ZZFA
-    info += '0000'
-    if ritFreq < 0:	# RIT freq
-      info += "-%05d" % -ritFreq
-    else:
-      info += "+%05d" % ritFreq
+    if len(cmd) == 4:	# Flex ZZIF
+      info += '0000'
+      if ritFreq < 0:	# RIT freq
+        info += "-%05d" % -ritFreq
+      else:
+        info += "+%05d" % ritFreq
+    else:		# Kenwood IF
+      info += '00000'
+      if ritFreq < 0:	# RIT freq
+        info += "-%04d" % -ritFreq
+      else:
+        info += "+%04d" % ritFreq
     info += "%d" % rit	# RIT status
     info += '0000'
     if QS.is_key_down():	# MOX, key down
@@ -933,6 +940,8 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
       if not isinstance(text, Q3StringTypes):
         text = text.decode('utf-8')
       self.received += text
+      if HAMLIB_DEBUG and text:
+        print ("Raw rig2 received:", text)
     if '\n' in self.received:	# A complete command ending with newline is available
       self.input, self.received = self.received.split('\n', 1)	# Split off the command, save any further characters
     else:
@@ -1217,6 +1226,267 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
       self.Reply2('', 0)
     else:
       self.ErrParam()
+
+class CatControl:
+  def GetFreqVfo(self, vfoB=False):
+    if vfoB:	# The Tx Frequency
+      return self.app.txFreq + self.app.VFO
+    else:	# The Rx Frequency
+      rx = self.app.multi_rx_screen.receiver_list
+      if rx:
+        rx = rx[0]
+        return rx.txFreq + rx.VFO
+      else:
+        return self.app.rxFreq + self.app.VFO
+  def SetFreqVfo(self, freq, vfoB=False):
+    if vfoB:	# The Tx Frequency
+      self.app.ChangeRxTxFrequency(None, freq)
+    else:	# The Rx Frequency
+      # For multiple receivers this controls the first added receiver frequency; else it controls split Rx/Tx frequency.
+      rx = self.app.multi_rx_screen.receiver_list
+      if rx:
+        rx[0].ChangeRxTxFrequency(freq)
+      else:
+        self.app.ChangeRxTxFrequency(freq, None)
+  def GetFilterBW(self):
+    return self.app.filter_bandwidth
+  def SetFilterBW(self, bw):
+    # Choose button closest to requested bandwidth
+    buttons = self.app.filterButns.GetButtons()
+    Lab = buttons[0].GetLabel()
+    diff = abs(int(Lab) - bw)
+    for i in range(1, len(buttons) - 1):
+      label = buttons[i].GetLabel()
+      df = abs(int(label) - bw)
+      if df < diff:
+        Lab = label
+        diff = df
+    self.app.filterButns.SetLabel(Lab, True)
+
+class ElecraftK4Handler(CatControl):	# Test with telnet localhost 9200
+  Mo2CoElecraft = {'LSB':1, 'USB':2, 'CWU':3, 'FM':4, 'AM':5, 'DGT-U':6, 'CWL':7, 'DGT-L':9, 'DGT-FM':4, 'DGT-IQ':6}
+  Co2MoElecraft = {1:'LSB', 2:'USB', 3:'CWU', 4:'FM', 5:'AM', 6:'DGT-U', 7:'CWL', 9:'DGT-L'}
+  def __init__(self, app, conf, sock, address):
+    self.app = app
+    self.conf = conf
+    self.sock = sock
+    sock.settimeout(0.0)
+    self.address = address
+    self.params = ''	# params is the string following the command
+    self.received = ''
+    self.cmds = []
+    self.K31Elecraft = False	# K31 mode
+    h = self.Handlers = {}	# Branch on the first two letters of the command
+    h['AI']	= self.AiAutoInfo
+    h['CW']	= self.CwCWPitch
+    h['DT']	= self.DtDataMode
+    h['FA']	= self.FaFbVfoFreq
+    h['FB']	= self.FaFbVfoFreq
+    h['FT']	= self.FtTxVfo
+    h['FW']	= self.FwFilterBW
+    h['ID']	= self.IdIdent
+    h['IF']	= self.IfInfo
+    h['IS']	= self.IsCenterPitch
+    h['KS']	= self.KsKeyerSpeed
+    h['K3']	= self.K3Elecraft
+    h['LN']	= self.LnLinkVfo
+    h['MD']	= self.MdMode
+    h['OM']	= self.OmOptionModules
+    h['RV']	= self.RvFirmware
+    h['RX']	= self.RxReceive
+    h['SB']	= self.SbSubReceiver
+    h['SM']	= self.SmSmeter
+    h['TX']	= self.TxTransmit
+  def Send(self, text):
+    """Send text back to the client."""
+    if HAMLIB_DEBUG:
+      for cmd in self.cmds[0:-1]:
+        print ("CatTcp received: %-10s" % cmd)
+      print ("CatTcp received: %-10s ; sent %s" % (self.cmds[-1], text))
+      del self.cmds[:]
+    text = text.encode('utf-8', errors='ignore')
+    try:
+      self.sock.sendall(text)
+    except socket.error:
+      self.sock.close()
+      self.sock = None
+  def Process(self):
+    """This is the main processing loop, and is called frequently.  It reads and satisfies requests."""
+    if not self.sock:
+      return 0
+    try:	# Read any data from the socket
+      text = self.sock.recv(1024)
+    except socket.timeout:	# This does not work
+      pass
+    except socket.error:	# Nothing to read
+      pass
+    else:					# We got some characters
+      text = text.decode('utf-8', errors='ignore')
+      self.received += text
+      if HAMLIB_DEBUG and text:
+        pass #print ("Raw CatTcp received:", text)
+    if ';' in self.received:	# A complete command ending with semicolon is available
+      cmd, self.received = self.received.split(';', 1)	# Split off the command, save any further characters
+    else:
+      return 1
+    cmd = cmd.strip()		# Here is our command line
+    if len(cmd) < 2:
+      return 1
+    if HAMLIB_DEBUG:
+      self.cmds.append(cmd)
+    base = cmd[0:2].upper()
+    try:
+      handler = self.Handlers[base]
+    except KeyError:
+      self.Send(cmd[0:2] + "?;")
+      #print ("Unknown command", cmd)
+      return 1
+    if len(cmd) == 2:
+      args = ''
+    elif cmd[2] == '$': # base is the first two letters upper case and any following "$"
+      base += '$'
+      args = cmd[3:]
+    else:
+      args = cmd[2:]
+    handler(base, args) # args is the remainder
+    return 1
+  def AiAutoInfo(self, base, args):
+    if not args:
+      self.Send("AI0;")
+    elif args != '0':
+      self.Send("AI0;")
+  def CwCWPitch(self, base, args):
+    pitch = self.conf.cwTone
+    pitch = (pitch + 5) // 10
+    if pitch < 25:
+      pitch = 25
+    elif pitch > 95:
+      pitch = 95
+    self.Send("CW%d;" % pitch)
+  def DtDataMode(self, base, args):
+    self.Send("%s0;" % base)
+  def IdIdent(self, base, args):
+    if args:
+      self.Send("ID?;")
+    else:
+      self.Send("ID017;")
+      #self.Send("IDQuisk;")
+  def IfInfo(self, base, args):
+    rxfreq = self.GetFreqVfo()
+    info = "%011d     " % rxfreq	# Rx frequency, five blanks
+    ritFreq = self.app.ritScale.GetValue()
+    if ritFreq < 0:	# +/- RIT freq
+      info += "-%04d" % -ritFreq
+    else:
+      info += "+%04d" % ritFreq
+    if self.app.ritButton.GetValue():	# RIT status, XIT status, blank "00"
+      info += "10 00"
+    else:
+      info += "00 00"
+    if QS.is_key_down():	# MOX, key down
+      info += '1'
+    else:
+      info += '0'
+    mode = self.Mo2CoElecraft.get(self.app.mode, 2)
+    info += "%d" % mode		# Mode 1-9
+    info += '00'		# Rx on VFOA, no scan 
+    if self.app.split_rxtx:	# VFO split status
+      info += '1'
+    else:
+      info += '0'
+    info += '001 ;'
+    self.Send(info)
+  def FaFbVfoFreq(self, base, args):
+    if base[1] in ('B', 'b'):
+      vfoB = True
+    else:
+      vfoB = False
+    if not args:	# Get command
+      freq = "%06d" % self.GetFreqVfo(vfoB)
+      self.Send(base + freq + ';')
+    else:		# Put command
+      try:
+        freq = int(args)
+      except:
+        self.Send(base + "?;")
+      else:
+        l = len(args)
+        if l <= 2:
+          freq *= 1000000
+        elif l <= 5:
+          freq *= 1000
+        self.SetFreqVfo(freq, vfoB)
+  def FtTxVfo(self, base, args):
+    if not args:
+      if self.app.split_rxtx:
+        self.Send("FT1;")
+      else:
+        self.Send("FT0;")
+    else:
+      # Set split Rx/Tx mode.
+      is_split = self.app.splitButton.GetValue()
+      split = int(args)
+      if split and not is_split:
+        self.app.splitButton.SetValue(split, True)
+      elif is_split and not split:
+        self.app.splitButton.SetValue(split, True)
+  def FwFilterBW(self, base, args):
+    if not args:
+      code = self.GetFilterBW()
+      self.Send("%s%04d;" % (base, (code + 5) // 10))
+    else:
+      self.SetFilterBW(int(args) * 10)
+  def IsCenterPitch(self, base, args):
+    if not args:
+      code = self.GetFilterBW() // 2
+      if self.K31Elecraft:
+        self.Send("%s %04d;" % (base, code))
+      else:
+        code = (code + 5) // 10
+        self.Send("%s%04d;" % (base, code))
+    else:
+      if self.K31Elecraft:
+        self.SetFilterBW(int(args) * 2)
+      else:
+        self.SetFilterBW(int(args) * 2 * 10)
+  def K3Elecraft(self, base, args):
+    if args == '1':
+      self.K31Elecraft = True
+    else:
+      self.K31Elecraft = False
+  def KsKeyerSpeed(self, base, args):
+    if len(base) == 2:
+      self.Send("KS013;")
+  def LnLinkVfo(self, base, args):
+    if args != '0':
+      self.Send("LN0;")
+  def MdMode(self, base, args):
+    if args:		# set the mode
+      code = int(args)
+      mode = self.Co2MoElecraft[code]
+      self.app.modeButns.SetLabel(mode, True)
+    else:		# return the mode
+      code = self.Mo2CoElecraft.get(self.app.mode, 2)
+      self.Send("%s%d;" % (base, code))
+  def OmOptionModules(self, base, args):
+    self.Send("OM ------------;")
+  def RvFirmware(self, base, args):
+    self.Send("%s99.99;" % base)
+  def RxReceive(self, base, args):
+    self.app.pttButton.SetValue(0, True)
+  def SbSubReceiver(self, base, args):
+    self.Send("SB0;")
+  def SmSmeter(self, base, args):
+    if base[0:3].upper() == "SMH":
+      self.Send(base + "?;")
+    elif args:
+      self.Send(base + "?;")
+    elif self.K31Elecraft:
+      self.Send("SM0000;")
+    else:
+      self.Send("SM00;")
+  def TxTransmit(self, base, args):
+    self.app.pttButton.SetValue(1, True)
 
 class SoundThread(threading.Thread):
   """Create a second (non-GUI) thread to read, process and play sound."""
@@ -3698,6 +3968,19 @@ class App(wx.App):
         # traceback.print_exc()
     else:
       self.hamlib_socket = None
+    # Quisk control by K4 commands through a TCP port
+    self.k4_tcp_clients = []	# list of TCP connections to handle
+    if conf.k4_tcp_port:
+      try:
+        self.k4_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.k4_tcp_socket.bind((conf.k4_tcp_ip, conf.k4_tcp_port))
+        self.k4_tcp_socket.settimeout(0.0)
+        self.k4_tcp_socket.listen(5)	# listen for TCP connections from multiple clients
+      except:
+        self.k4_tcp_socket = None
+        # traceback.print_exc()
+    else:
+      self.k4_tcp_socket = None
     # Quisk control by fldigi
     self.fldigi_new_freq = None
     self.fldigi_freq = None
@@ -4406,6 +4689,9 @@ class App(wx.App):
     if self.hamlib_socket:
       self.hamlib_socket.close()
       self.hamlib_socket = None
+    if self.k4_tcp_socket:
+      self.k4_tcp_socket.close()
+      self.k4_tcp_socket = None
     if self.dxCluster:
       self.dxCluster.stop()
     if self.hamlib_com1_handler:
@@ -6383,7 +6669,7 @@ class App(wx.App):
         if rxtx != 'rx':
           self.fldigi_server.main.rx()
           self.fldigi_timer = time.time()
-  def HamlibPoll(self):		# Poll for Hamlib commands
+  def HamlibPoll(self):		# Poll for Hamlib and K4 TCP commands
     if self.hamlib_socket:
       try:		# Poll for new client connections.
         conn, address = self.hamlib_socket.accept()
@@ -6395,6 +6681,19 @@ class App(wx.App):
       for client in self.hamlib_clients:	# Service existing clients
         if not client.Process():		# False return indicates a closed connection; remove the handler for this client
           self.hamlib_clients.remove(client)
+          # print ('Remove', client.address)
+          break
+    if self.k4_tcp_socket:
+      try:		# Poll for new client connections.
+        conn, address = self.k4_tcp_socket.accept()
+      except socket.error:
+        pass
+      else:
+        # print ('Connection from', address)
+        self.k4_tcp_clients.append(ElecraftK4Handler(self, conf, conn, address))
+      for client in self.k4_tcp_clients:	# Service existing clients
+        if not client.Process():		# False return indicates a closed connection; remove the handler for this client
+          self.k4_tcp_clients.remove(client)
           # print ('Remove', client.address)
           break
   def OnKeyHook(self, event):

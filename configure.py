@@ -1338,7 +1338,16 @@ class RadioNotebook(wx.Notebook):	# The second-level notebook for each radio nam
     self.AddPage(page, "Sound")
     self.pages.append(page)
     for section, names in local_conf.sections:
-      if section in ('Sound', 'Bands', 'Filters'):		# There is a special page for these sections
+      if section == 'Sound':		# There is a special page for these sections
+        continue
+      if section == 'Bands':
+        continue
+      if section == 'Filters':
+        continue
+      if section == 'Remote':
+        page = RadioRemote(self, radio_name, section, names)
+        self.AddPage(page, section)
+        self.pages.append(page)
         continue
       page = RadioSection(self, radio_name, section, names)
       self.AddPage(page, section)
@@ -1979,6 +1988,16 @@ class ControlMixin:
     btn.SetSizeHints(h, h, h, h)
     self.gbs.Add(btn, (self.row, col), flag=wx.ALIGN_CENTER_VERTICAL|wx.RIGHT, border=self.charx*border)
     return sld, btn
+  def AddTextHeading(self, key, text, help_text):
+    if key in text:		# Start of heading
+      self.NextRow()
+      self.SetFont(self.heading_font)
+      self.AddTextL(1, help_text, span=7)
+      self.SetFont(self.font)
+      self.NextRow()
+      self.col = 2
+      return key
+    return None
   def AddPopupMenuHelp(self, Qclass, col, text, btn_text, help_text, span1=1, span2=1, border=1):
     if text:
       txt = wx.StaticText(self, -1, text)
@@ -2890,16 +2909,7 @@ class RadioSection(BaseWindow):		# The pages for each section in the second-leve
     radio_dict = local_conf.GetRadioDict(self.radio_name)
     radio_type = radio_dict['hardware_file_type']
     for name, text, fmt, help_text, values in self.names:
-      if name == 'remote_radio_password':
-        self.AddTextButtonHelp(col, text, "Change", self.OnChangePassword, help_text)
-        if col == 1:
-          col = 4
-        else:
-          col = 1
-          self.NextRow()
-      elif name == 'remote_radio_ip' and radio_type != "Control Head":
-        continue
-      elif name == 'favorites_file_path':
+      if name == 'favorites_file_path':
         self.favorites_path = radio_dict.get('favorites_file_path', '')
         row = self.row
         self.row = 1
@@ -3087,14 +3097,6 @@ class RadioSection(BaseWindow):		# The pages for each section in the second-leve
       index = self.list_ctrl.GetFirstSelected()
       if index >= 0:
         self.list_ctrl.Select(index, 0)
-  def OnChangePassword(self, event):
-    text = local_conf.globals.get('remote_radio_password', '')
-    dlg = wx.TextEntryDialog(self, "Please enter a password for remote access",
-          "Password Entry", text)
-    if dlg.ShowModal() == wx.ID_OK:
-      local_conf.globals["remote_radio_password"] = dlg.GetValue()
-      local_conf.settings_changed = True
-      local_conf.SaveState()
 
 class RadioHardwareBase(BaseWindow):		# The Hardware page in the second-level notebook for each radio
   def __init__(self, parent, radio_name):
@@ -3747,7 +3749,7 @@ class RadioSound(BaseWindow):		# The Sound page in the second-level notebook for
     self.radio_dict = local_conf.GetRadioDict(self.radio_name)
     self.num_cols = 8
     for name, text, fmt, help_text, values in local_conf.GetSectionData('Sound'):
-      if name in ('digital_output_level', 'file_play_level'):
+      if name in ('digital_output_level', 'file_play_level', 'IQ_Server_IP'):
         value = self.GetValue(name, self.radio_dict)
         no_edit = "choice" in fmt or fmt == 'boolean'
         txt, cb, btn = self.AddTextComboHelp(1, text, value, values, help_text, no_edit)
@@ -4181,6 +4183,88 @@ The Tx bits are sent as the "Alex" filters and are sent to the J16 interface.'
     local_conf.settings_changed = True
     if hasattr(application.Hardware, "ImmediateChange"):
       application.Hardware.ImmediateChange(name)
+
+class RadioRemote(BaseWindow):		# The Remote page in the second-level notebook for each radio
+  def __init__(self, parent, radio_name, section, names):
+    BaseWindow.__init__(self, parent)
+    self.radio_name = radio_name
+    self.section = section
+    self.names = names
+    self.heading_font = wx.Font(conf.config_font_size, wx.FONTFAMILY_SWISS, wx.ITALIC,
+          wx.FONTWEIGHT_NORMAL, False, conf.quisk_typeface)
+    self.MakeControls()
+  def MakeControls(self):
+    self.num_cols = 8
+    #self.MarkCols()
+    self.AddColSpacer(1, 3)
+    self.NextRow()
+    self.col = 2
+    radio_dict = local_conf.GetRadioDict(self.radio_name)
+    radio_type = radio_dict['hardware_file_type']
+    heading = None
+    for name, text, fmt, help_text, values in self.names:
+      if heading:
+        if heading not in text:		# End of heading
+          heading = None
+          self.NextRow()
+          self.col = 2
+      if not heading:
+        heading = self.AddTextHeading("Hamlib Rig 2", text,
+'Rig control commands using "Hamlib Rig 2" are sent to a Quisk TCP port from multiple clients.')
+      if not heading:
+        heading = self.AddTextHeading("XML-RPC", text,
+'XML-RPC is a protocol that allows clients to call methods on a remote server using XML passed via HTTP')
+      if not heading:
+        heading = self.AddTextHeading("CAT serial", text,
+'"CAT serial" supports the FlexRadio PowerSDR 2.x command set sent over a serial port. Some Kenwood commands are included.')
+      if not heading:
+        heading = self.AddTextHeading("remote radio", text,
+'Quisk can be used as a control head to control a real radio located remotely. This feature is due to AC2YD.')
+      if not heading:
+        heading = self.AddTextHeading("K4 TCP", text,
+'Rig control commands using "K4 TCP" use the Elecraft K4 command set, and are sent to a Quisk TCP port from multiple clients.')
+      if not heading:
+        heading = self.AddTextHeading("Dx cluster", text,
+'"Dx Cluster" is a telnet service used to announce Dx spots in real time.')
+      if name == 'remote_radio_password':
+        self.AddTextButtonHelp(self.col, text, "Change", self.OnChangePassword, help_text)
+        if self.col == 2:
+          self.col = 5
+        else:
+          self.col = 2
+          self.NextRow()
+      elif name == 'remote_radio_ip' and radio_type != "Control Head":
+        continue
+      else:
+        if fmt[0:4] in ('dict', 'list'):
+          continue
+        if name[0:4] == platform_ignore:
+          continue
+        value = self.GetValue(name, radio_dict)
+        no_edit = "choice" in fmt or fmt == 'boolean'
+        txt, cb, btn = self.AddTextComboHelp(self.col, text, value, values, help_text, no_edit)
+        cb.handler = self.OnChange
+        cb.quisk_data_name = name
+        if self.col == 2:
+          self.col = 5
+        else:
+          self.col = 2
+          self.NextRow()
+    self.NextRow()
+    self.AddTextL(1, "End of list", span=7)
+    self.AddColSpacer(3, 20)
+    self.AddColSpacer(6, 20)
+    self.FitInside()
+    self.SetScrollRate(1, 1)
+  def OnChangePassword(self, event):
+    text = local_conf.globals.get('remote_radio_password', '')
+    dlg = wx.TextEntryDialog(self, "Please enter a password for remote access",
+          "Password Entry", text)
+    if dlg.ShowModal() == wx.ID_OK:
+      local_conf.globals["remote_radio_password"] = dlg.GetValue()
+      local_conf.settings_changed = True
+      local_conf.SaveState()
+
 
 class xxRadioFilters(BaseWindow):		# The Filters page in the second-level notebook for each radio
   def __init__(self, parent, radio_name):

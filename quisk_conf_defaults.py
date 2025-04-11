@@ -1094,6 +1094,11 @@ file_play_level = 1.000
 #file_play_level = 0.500
 #file_play_level = 0.100
 
+## IQ_Server_IP         Pulse server IP address, text
+# IP Address for remote PulseAudio IQ server.
+IQ_Server_IP = ""
+#IQ_Server_IP = "192.168.230.102"
+
 # Sound card names:
 #
 # In PortAudio, soundcards have an index number 0, 1, 2, ... and a name.
@@ -1303,51 +1308,15 @@ fixed_tune_offset = 0
 
 
 ################ Remote
-# DX cluster telent login data, thanks to DJ4CM.  Must have station_display_lines > 0.
-## dxClHost             Dx cluster host name, text
-# The Dx cluster options log into a Dx cluster server, and put station information
-# on the station window under the graph and waterfall screens.
-# dxClHost is the telnet host name.
-dxClHost = ''
-#dxClHost = 'example.host.net'
-
-## dxClPort             Dx cluster port number, integer
-# The Dx cluster options log into a Dx cluster server, and put station information
-# on the station window under the graph and waterfall screens.
-# dxClPort is the telnet port number.
-dxClPort = 7373
-
-## user_call_sign       Call sign for Dx cluster, text
-# The Dx cluster options log into a Dx cluster server, and put station information
-# on the station window under the graph and waterfall screens.
-# user_call_sign is your call sign which may be needed for login.
-user_call_sign = ''
-
-## dxClPassword         Password for Dx cluster, text
-# The Dx cluster options log into a Dx cluster server, and put station information
-# on the station window under the graph and waterfall screens.
-# dxClPassword  is the telnet password for the server.
-dxClPassword = ''
-#dxClPassword = 'getsomedx'
-
-## dxClExpireTime       Dx cluster expire minutes, integer
-# The Dx cluster options log into a Dx cluster server, and put station information
-# on the station window under the graph and waterfall screens.
-# dxClExpireTime is the time in minutes until DX Cluster entries are removed.
-dxClExpireTime = 20
-
-## IQ_Server_IP         Pulse server IP address, text
-#IP Address for remote PulseAudio IQ server.
-IQ_Server_IP = ""
-
 ## hamlib_ip            IP address for Hamlib Rig 2, text
 # You can control Quisk from Hamlib.  Set the Hamlib rig to 2 and the device for rig 2 to
 # localhost:4575.  Or choose a different name and port here.  Set the same name and port
 # in the controlling program.
 # hamlib_ip is the IP name or address.
-hamlib_ip = "localhost"
+hamlib_ip = ""
+#hamlib_ip = "localhost"
 
-## hamlib_port          IP port for Hamlib, integer
+## hamlib_port          IP port for Hamlib Rig 2, integer
 # You can control Quisk from Hamlib. For direct control, set the external program to rig 2
 # "Hamlib NET rigctl", and set the Quisk hamlib port to 4532. To use the rigctld program to control
 # Quisk, set the Quisk hamlib port to 4575. To turn off Hamlib control, set the Quisk port to zero.
@@ -1398,18 +1367,63 @@ win_hamlib_com2_name = ""
 #win_hamlib_com2_name = "COM15"
 #win_hamlib_com2_name = "COM16"
 
-## remote_radio_ip         Remote radio IP or name, text
+## remote_radio_ip         IP or name of the remote radio, text
 # Quisk can be used as a control head to control a real radio located remotely.
 # This is the IP adddress or the host name of the remote radio.
 remote_radio_ip = ""
 #remote_radio_ip = "192.168.1.56"
 
-## remote_radio_password         Password for remote radio, text
+## remote_radio_password         Password for the remote radio, text
 # Quisk can be used as a control head to control a real radio located remotely.
 # For security it requires the same password to be entered on both computers.
 # Enter a fairly long pass phrase of 20 or more characters.
 # It is only necessary to enter it once on each computer.
 remote_radio_password = ""
+
+## k4_tcp_ip			IP address for K4 TCP, text
+# This is the Quisk IP address for the TCP server implementing K4 commands.
+k4_tcp_ip = ""
+#k4_tcp_ip = "localhost"
+#k4_tcp_ip = "127.0.0.1"
+
+## k4_tcp_port			Port number for K4 TCP, integer
+# This is the Quisk port for the TCP server implementing K4 commands.
+k4_tcp_port = 0
+#k4_tcp_port = 9200
+#k4_tcp_port = 50004
+
+# DX cluster telent login data, thanks to DJ4CM.  Must have station_display_lines > 0.
+## dxClHost             Dx cluster host name, text
+# The Dx cluster options log into a Dx cluster server, and put station information
+# on the station window under the graph and waterfall screens.
+# dxClHost is the telnet host name.
+dxClHost = ''
+#dxClHost = 'example.host.net'
+
+## dxClPort             Dx cluster port number, integer
+# The Dx cluster options log into a Dx cluster server, and put station information
+# on the station window under the graph and waterfall screens.
+# dxClPort is the telnet port number.
+dxClPort = 7373
+
+## user_call_sign       Call sign for Dx cluster, text
+# The Dx cluster options log into a Dx cluster server, and put station information
+# on the station window under the graph and waterfall screens.
+# user_call_sign is your call sign which may be needed for login.
+user_call_sign = ''
+
+## dxClPassword         Password for Dx cluster, text
+# The Dx cluster options log into a Dx cluster server, and put station information
+# on the station window under the graph and waterfall screens.
+# dxClPassword  is the telnet password for the server.
+dxClPassword = ''
+#dxClPassword = 'getsomedx'
+
+## dxClExpireTime       Dx cluster expire minutes, integer
+# The Dx cluster options log into a Dx cluster server, and put station information
+# on the station window under the graph and waterfall screens.
+# dxClExpireTime is the time in minutes until DX Cluster entries are removed.
+dxClExpireTime = 20
 
 
 
