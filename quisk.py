@@ -3294,16 +3294,27 @@ class MultiReceiverScreen(wx.SplitterWindow):
       if pane != excpt:
         pane.play_btn.SetValue(False)
         pane.is_playing = False
-  def OnAddReceiver(self, event):
+  def OnAddReceiver(self, event=None, hide_it=False):
     index = len(self.receiver_list)
     if index >= 7:
       return
     if index == 0:
-      pane2 = self.rx_zero
-      splitter = pane2.GetParent()
       pane1 = MultiRxGraph(self, self.data_width, self.graph_width, index)
       self.receiver_list.append(pane1)
-      splitter.SplitHorizontally(pane1, self.rx_zero)
+      if hide_it:
+        pane1.Show(False)
+        pane1.graph_display.Show(False)
+      else:
+        pane2 = self.rx_zero
+        splitter = pane2.GetParent()
+        splitter.SplitHorizontally(pane1, self.rx_zero)
+    elif index == 1 and not self.receiver_list[0].IsShown():
+        pane1 = self.receiver_list[0]
+        pane2 = self.rx_zero
+        splitter = pane2.GetParent()
+        pane1.Show(True)
+        pane1.graph_display.Show(True)
+        splitter.SplitHorizontally(pane1, self.rx_zero)
     else:
       pane2 = self.receiver_list[-1]
       parent = pane2.GetParent()
@@ -4208,6 +4219,8 @@ class App(wx.App):
     # Start wdsp
     self.wdsp = quisk_wdsp.Cwdsp(self)
     self.wdsp_channel = 1
+    self.wdsp_SNB = 0
+    self.wdsp_NR2 = 0
     self.wdsp.open(self.wdsp_channel)
     #print ('data_width %d, FFT size %d, FFT mult %d, average_count %d, rate %d, Refresh %.2f Hz' % (
     #    self.data_width, self.fft_size, self.fft_size / self.data_width, average_count, self.sample_rate,
@@ -4897,7 +4910,7 @@ class App(wx.App):
     b.char_shortcut = 'u'
     self.MakeAccel(b)
     left_row2.append(b)
-    b = QuiskCheckbutton(frame, self.OnBtnNR2, text='NR2')
+    b = QuiskCycleCheckbutton(frame, self.OnBtnNR2, ['NR2', 'NR2', 'NR2t'])
     if not self.wdsp.version:
       b.Enable(False)
     left_row2.append(b)
@@ -5105,7 +5118,7 @@ class App(wx.App):
         else:
           self.modeButns.Enable('FDV-U', False)
     if conf.add_imd_button:
-      val = 500
+      val = 1000
       QS.set_imd_level(val)
       if conf.button_layout == 'Large screen':
         b = QuiskCheckbutton(frame, None, 'IMD', color=conf.color_test)
@@ -6103,11 +6116,18 @@ class App(wx.App):
       QS.set_auto_notch(0)
   def OnBtnNR2(self, event):
     btn = event.GetEventObject()
-    if btn.GetValue():
+    if btn.index == 1:
+      self.wdsp.put(self.wdsp.SetRXAEMNRgainMethod, self.wdsp_channel, 2)
       self.wdsp.put(self.wdsp.SetRXAEMNRRun, self.wdsp_channel, 1)
-      QS.wdsp_set_parameter(self.wdsp_channel, in_use=1)
+      self.wdsp_NR2 = 1
+    elif btn.index == 2:
+      self.wdsp.put(self.wdsp.SetRXAEMNRgainMethod, self.wdsp_channel, 3)
+      self.wdsp.put(self.wdsp.SetRXAEMNRRun, self.wdsp_channel, 1)
+      self.wdsp_NR2 = 1
     else:
       self.wdsp.put(self.wdsp.SetRXAEMNRRun, self.wdsp_channel, 0)
+      self.wdsp_NR2 = 0
+    QS.wdsp_set_parameter(self.wdsp_channel, in_use=self.wdsp_NR2 + self.wdsp_SNB)
   def OnMenuNB(self, event):
     # menu is ("NB 1", "NB 2", "NB 3", "SNB")
     for item in self.NB_menu.GetMenuItems():
@@ -6123,14 +6143,17 @@ class App(wx.App):
       if text == "SNB":
         QS.set_noise_blanker(0)
         self.wdsp.put(self.wdsp.SetRXASNBARun, self.wdsp_channel, 1)
-        QS.wdsp_set_parameter(self.wdsp_channel, in_use=1)
+        self.wdsp_SNB = 1
       else:
         self.wdsp.put(self.wdsp.SetRXASNBARun, self.wdsp_channel, 0)
+        self.wdsp_SNB = 0
         index = int(text[-1])
         QS.set_noise_blanker(index)
     else:	# Noise blanker Off
       QS.set_noise_blanker(0)
       self.wdsp.put(self.wdsp.SetRXASNBARun, self.wdsp_channel, 0)
+      self.wdsp_SNB = 0
+    QS.wdsp_set_parameter(self.wdsp_channel, in_use=self.wdsp_NR2 + self.wdsp_SNB)
   def FreqEntry(self, event):
     freq = event.GetString()
     win = event.GetEventObject()

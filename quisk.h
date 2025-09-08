@@ -339,6 +339,7 @@ extern PyObject * quisk_sound_errors(PyObject *, PyObject *);
 extern PyObject * quisk_set_file_record(PyObject *, PyObject *);
 extern PyObject * quisk_set_file_name(PyObject *, PyObject *, PyObject *);
 extern PyObject * quisk_set_tx_audio(PyObject *, PyObject *, PyObject *);
+extern PyObject * quisk_get_tx_audio(PyObject *, PyObject *);
 extern PyObject * quisk_is_vox(PyObject *, PyObject *);
 extern PyObject * quisk_set_udp_tx_correct(PyObject *, PyObject *);
 extern PyObject * quisk_set_hermes_filter(PyObject *, PyObject *);
@@ -362,7 +363,7 @@ extern PyObject * quisk_wasapi_control_midi(PyObject *, PyObject *, PyObject *);
 // WDSP interface
 #define QUISK_WDSP_RX	1
 extern PyObject * quisk_wdsp_set_parameter(PyObject *, PyObject *, PyObject *);
-extern int wdspFexchange0(int, double *, int);
+extern int wdspFexchange0(int, complex double *, int);
 
 // These function pointers are the Start/Stop/Read interface for
 // the SDR-IQ and any other C-language extension modules that return
@@ -404,6 +405,7 @@ void * quisk_make_txIQ(struct sound_dev *, int);
 int quisk_play_sidetone(struct sound_dev *);
 void quisk_set_play_state(void);
 void quisk_poll_hardware_key(void);
+void PreDistort(complex double * amp_in_samples, complex double * amp_out_samples, int nSamples, complex double * tx_samples, int num_tx);
 
 // Functions supporting digital voice codecs
 typedef int  (* ty_dvoice_codec_rx)(short *, double *, int, int);

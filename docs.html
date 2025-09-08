@@ -73,6 +73,8 @@ h3     {font-size:1.6rem;}
 <li><a href="#Digital">Digital Modes</a></li>
 <li><a href="#Hamlib">Rig Control and Logging</a></li>
 <li><a href="#wsjtx">WSJT-X</a></li>
+<li><a href="#freedv">FreeDV</a></li>
+<li><a href="#wdsp">NR2 and WDSP</a></li>
 <li><a href="#VNA">VNA</a></li>
 <li><a href="#Remote">Remote Operation</a></li>
 </ul>
@@ -81,7 +83,7 @@ h3     {font-size:1.6rem;}
 <div class="contents">
 <h1>
 <a id="Welcome"></a>
-Welcome to QUISK (December 2023)
+Welcome to QUISK (September 2025)
 </h1>
 
 <p>
@@ -1602,6 +1604,28 @@ For Linux, use the pulseaudio devices:
     <td>QuiskDigitalOutput.monitor</td>
   </tr>
 </table>
+<br><br>
+<h2 id="freedv">FreeDV Digital Voice</h2>
+<p>
+The <a href="https://freedv.org/">FreeDV project</a> has produced a new and exciting digital voice mode, the
+<a href="https://github.com/drowe67/radae/blob/main/doc/rade_intro_waveform.pdf">Radio Autoencoder RADE</a>. 
+The RADE mode is a real advance. It has a small peak to average power radio. And its digital constellation is not
+discrete dots but rather a continuous analog pattern. It works great and sounds great!
+You can make digital voice QSO's by using the FreeDV-GUI program. It runs in its own window and connects to your
+HF radio using the same virtual audio connections used by other digital programs such as WSJT-X.
+I wrote a <a href="http://james.ahlstrom.name/rade.html">guide to using FreeDV-GUI</a> to make it easier to install and use it.
+</p>
+<br><br>
+<h2 id="wdsp">NR2 and WDSP</h2>
+<p>
+Quisk uses the WDSP library for the NR2 noise reduction and the SNB noise blanker. The WDSP library must be available
+for these features to work. For windows, the library is included. For Linux you must build it by changing to the
+quisk/wdsp directory and entering "make". The library is used in-place and no installation is necessary.
+</p>
+<br>
+<p>
+The new "trained" method of NR2 is included. Press the NR2 button twice to select "NR2t".
+</p>
 <br><br>
 <h2 id="VNA">Vector Network Analyzer</h2>
 <p>

@@ -1,3 +1,14 @@
+Quisk Version 4.2.43  September 2025
+====================================
+I fixed a bug in the WDSP library NR2 noise reduction feature. I added the "Trained" method of NR2.
+Quisk uses the WDSP library for the NR2 noise reduction and the SNB noise blanker. The WDSP library must be available
+for these features to work. For windows, the library is included. For Linux you must build it by changing to the
+quisk/wdsp directory and entering "make". The library is used in-place and no installation is necessary.
+The new "trained" method of NR2 is included. Press the NR2 button twice to select "NR2t".
+
+I added documentation for the new FreeDV mode RADE. See http://james.ahlstrom.name/rade.html.
+The default IMD magnitude is now 100%.
+
 Quisk Version 4.2.42  April 2025
 ================================
 I fixed a bug in the Kenwood IF CAT command. Thanks Nick!  I moved the Pulse server IP address to the Sound screen.

@@ -75,6 +75,8 @@ static int vox_level = CLIP16;			// VOX trigger level as a number 0 to CLIP16
 static int timeVOX = 2000;				// VOX hang time in milliseconds
 static int tx_sample_rate = 48000;	// Used for SoapySDR
 static int reverse_tx_sideband;
+static int PsEnable = 0;
+static int PsCal = 0;
 
 static int doTxCorrect = 0;				// Corrections for UDP sample transmit
 static double TxCorrectLevel;
@@ -1445,6 +1447,21 @@ int quisk_process_microphone(int mic_sample_rate, complex double * cSamples, int
 	//QuiskPrintTime("    process_mic", 1);
 #endif
 	return count;
+}
+
+PyObject * quisk_get_tx_audio(PyObject * self, PyObject * args)
+{
+	const char * name;
+
+	if (!PyArg_ParseTuple (args, "s", &name))
+		return NULL;
+
+	if (strcmp(name, "PsEnable") == 0)
+		return PyInt_FromLong(PsEnable);
+	if (strcmp(name, "PsCal") == 0)
+		return PyInt_FromLong(PsCal);
+	Py_INCREF (Py_None);
+	return Py_None;
 }
 
 PyObject * quisk_set_tx_audio(PyObject * self, PyObject * args, PyObject * keywds)

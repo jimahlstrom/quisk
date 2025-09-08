@@ -25,16 +25,20 @@ class Cwdsp:
             pass
     else:
       try:
-        self.Lib = ctypes.CDLL("./libwdsp.so")
-        Log ("Found private wdsp")
+        self.Lib = ctypes.CDLL("./wdsp/libwdsp.so")
+        Log ("Found private wdsp in quisk/wdsp")
       except:
-        name = ctypes.util.find_library("wdsp")
-        if name:
-          try:
-            self.Lib = ctypes.CDLL(name)
-            Log ("Found public wdsp")
-          except:
-            pass
+        try:
+          self.Lib = ctypes.CDLL("./libwdsp.so")
+          Log ("Found private wdsp in quisk/")
+        except:
+          name = ctypes.util.find_library("wdsp")
+          if name:
+            try:
+              self.Lib = ctypes.CDLL(name)
+              Log ("Found public wdsp")
+            except:
+              pass
     if not self.Lib:
       Log("Wdsp was not found")
       return
@@ -73,7 +77,7 @@ class Cwdsp:
       dsp_size = 256
       QS.wdsp_set_parameter(channel, in_size=in_size)
       Lib.OpenChannel (channel, in_size, dsp_size, 48000, 48000, 48000, 0, 1,
-        ctypes.c_double(0.010), ctypes.c_double(0.025), ctypes.c_double(0.0), ctypes.c_double(0.010), 0)
+        ctypes.c_double(0.010), ctypes.c_double(0.025), ctypes.c_double(0.0), ctypes.c_double(0.010), 1)
       Lib.SetRXAShiftRun (channel, 0)
       Lib.RXANBPSetRun (channel, 0)
       Lib.SetRXAAMSQRun (channel, 0)

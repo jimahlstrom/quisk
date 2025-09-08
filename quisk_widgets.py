@@ -582,6 +582,7 @@ class QuiskPushbutton(QuiskButtons, wx.lib.buttons.GenButton):
     self.Bind(wx.EVT_BUTTON, self.OnButton)
     self.InitButtons(text, text_color)
     self.direction = 1
+    self.normal_brush = self.up_brush
     if use_right:
       self.Bind(wx.EVT_RIGHT_DOWN, self.OnRightDown)
       self.Bind(wx.EVT_RIGHT_UP, self.OnRightUp)
@@ -603,7 +604,12 @@ class QuiskPushbutton(QuiskButtons, wx.lib.buttons.GenButton):
       event = wx.PyEvent()
       event.SetEventObject(self)
       self.command(event)
-      
+  def SetColorNormal(self):
+    self.up_brush = self.normal_brush
+    self.Refresh()
+  def SetColor(self, color):
+    self.up_brush = wx.Brush(color)
+    self.Refresh()
 
 class QuiskRepeatbutton(QuiskButtons, wx.lib.buttons.GenButton):
   """A push button that repeats when held down."""

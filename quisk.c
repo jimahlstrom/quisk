@@ -2544,7 +2544,8 @@ int quisk_process_samples(complex double * cSamples, int nSamples)
 			}
 	}
 
-	NoiseBlanker(cSamples, nSamples);
+	if ( ! quisk_is_key_down())
+		NoiseBlanker(cSamples, nSamples);
 
 	// Put samples into the fft input array.
 	// Thanks to WB4JFI for the code to add a third FFT buffer, July 2010.
@@ -2756,7 +2757,7 @@ int quisk_process_samples(complex double * cSamples, int nSamples)
 		quisk_decim_srate = 48000;
 	}
 	// Process the Rx path with the WDSP library
-	nSamples = wdspFexchange0(QUISK_WDSP_RX, (double *)cSamples, nSamples);
+	nSamples = wdspFexchange0(QUISK_WDSP_RX, cSamples, nSamples);
 
 	// Interpolate the samples from 48000 sps to the play rate.
 	switch (quisk_sound_state.playback_rate / 48000) {
@@ -3850,6 +3851,43 @@ static int read_rx_udp10(complex double * samp)	// Read samples from UDP using t
 			}
 		}
 	}
+	//PreDistort(multirx_cSamples[0], samp, nSamples, NULL, 0);	//amp in samples, amp out samples, count
+#if 0
+	float mag_in, mag_out;
+	complex float gain;
+	complex double * amp_in_samples;
+	complex double * amp_out_samples;
+	static int up = 0;
+	static float old_mag_in = 0;
+	amp_in_samples = multirx_cSamples[0];
+	amp_out_samples = samp;
+	//if (hermes_mox_bit && quisk_multirx_count > 0) {
+	if (quisk_multirx_count == 1) {
+		for (i = 0; i < nSamples; i++) {
+			//mag_in = cabs(amp_in_samples[i]) / 0.236875 / CLIP32;
+			//mag_out = cabs(amp_out_samples[i]) / 0.088037 / CLIP32;
+			mag_in = cabs(amp_in_samples[i]) / CLIP32;
+			mag_out = cabs(amp_out_samples[i]) / CLIP32;
+			//if (0.100 - 0.01 < mag_in && mag_in < 0.100 + 0.01) {
+			//if (mag_in > .001) {
+			if (mag_in > 0.001 && mag_in < 0.234) {
+				if (up && mag_in < old_mag_in) {
+					//printf("\n");
+					up = 0;
+				}
+				else if ( ! up && mag_in > old_mag_in) {
+					//printf("\n");
+					up = 1;
+				}
+				old_mag_in = mag_in;
+				//gain = amp_out_samples[i] / amp_in_samples[i] / (0.088037 / 0.236875);
+				gain = amp_out_samples[i] / amp_in_samples[i];
+				printf("In %12.6f %8.3f  Out %12.6f %8.3f  Gain %12.6f %8.3f\n",
+				mag_in, cargf(amp_in_samples[i]), mag_out, cargf(amp_out_samples[i]), cabsf(gain), cargf(gain));
+			}
+		}
+	}
+#endif
 	if ((quisk_pc_to_hermes[3] >> 3 & 0x7) != quisk_multirx_count &&	// change in number of receivers
 		( ! quisk_multirx_count || multirx_fft_next_state == 2)) {		// wait until the current FFT is finished
 			quisk_multirx_state = 0;		// Do not change receiver count without stopping Hermes and restarting
@@ -6190,6 +6228,7 @@ static PyMethodDef QuiskMethods[] = {
 	{"XXset_transmit_mode", set_transmit_mode, METH_VARARGS, "Change the radio to transmit mode independent of key_down."},
 	{"set_volume", set_volume, METH_VARARGS, "Set the audio output volume."},
 	{"set_tx_audio", (PyCFunction)quisk_set_tx_audio, METH_VARARGS|METH_KEYWORDS, "Set the transmit audio parameters."},
+	{"get_tx_audio", (PyCFunction)quisk_get_tx_audio, METH_VARARGS, "Return some transmit audio parameters."},
 	{"is_vox", quisk_is_vox, METH_VARARGS, "return the VOX state zero or one."},
 	{"set_split_rxtx", set_split_rxtx, METH_VARARGS, "Set split for rx/tx."},
 	{"set_tune", set_tune, METH_VARARGS, "Set the tuning frequency."},

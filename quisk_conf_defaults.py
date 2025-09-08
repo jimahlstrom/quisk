@@ -402,7 +402,8 @@ Hware_Hl2_EepromMACUse = 'Ignore'
 #Hware_Hl2_EepromMACUse = 'Set address'
 
 ## hermes_TxLNA_dB			LNA during Tx dB, integer
-# During transmit the low noise Rx amplifier gain changes to this value (in dB) if the hardware supports it.
+# During transmit the low noise Rx amplifier gain changes to this value (in dB).
+# The LNA gain is -12 to 48 dB. Use -12 for Pure Signal.
 # Changes are immediate (no need to restart).
 hermes_TxLNA_dB = -12
 
