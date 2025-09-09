@@ -1,6 +1,6 @@
 #
 # Makefile for WDSP library
-# This one creates libwdsp.a intended for statis linking
+# This one creates libwdsp.so, the shared library.
 #
 
 LIBS=-lfftw3 -lpthread
