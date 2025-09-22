@@ -896,6 +896,8 @@ static void quisk_hermes_tx_add(complex double * cSamples, int tx_count, int key
 		if (hermes_read_index >= HERMES_TX_BUF_SHORTS)
 			hermes_read_index -= HERMES_TX_BUF_SHORTS;
 	}
+	// Send the transmit samples to the predistortion logic. Modify the samples in place.
+	PreDistort(NULL, NULL, 0, cSamples, tx_count);
 	hermes_num_samples += tx_count;
 	for (i = 0; i < tx_count; i++) {			// Put transmit mic samples into the buffer
 		hermes_buf[hermes_write_index++] = (short)cimag(cSamples[i]);
@@ -911,6 +913,7 @@ void quisk_hermes_tx_send(int tx_socket, int * tx_records)
 {	// Send one UDP block of mic samples using the Metis-Hermes protocol.  Timing is from blocks received, rate is 48k.
 	// If the key is up we send samples anyway, but the samples are zero.
 	int i, j, offset, sent, ratio;
+	int PsInUse;
 	short s;
 	unsigned char sendbuf[1032];
 	unsigned char * pt_buf;
@@ -918,6 +921,7 @@ void quisk_hermes_tx_send(int tx_socket, int * tx_records)
 	static unsigned char C0_index = 0;
 	complex double cw_samples[63 * 2];
 	static double writequeue_time0 = 0;
+	static unsigned char rx1_freq[4];	// frequency of the first receiver
 
 	//printf("hermes_tx_send start 1: hermes_num_samples %d\n", hermes_num_samples);
 	if (tx_records == NULL) {
@@ -930,6 +934,7 @@ void quisk_hermes_tx_send(int tx_socket, int * tx_records)
 		last_play_state = quisk_play_state;
 		serial_key_samples(NULL, 0);
 	}
+	PsInUse = PsEnable || PsCal;
 	//printf("hermes_tx_send start 2: hermes_num_samples %d\n", hermes_num_samples);
 	ratio = quisk_sound_state.sample_rate / 48000;		// send rate is 48 ksps
 	//printf ("quisk_hermes_tx_send ratio %d count %d\n", ratio, *tx_records);
@@ -973,15 +978,33 @@ void quisk_hermes_tx_send(int tx_socket, int * tx_records)
 	sendbuf[13] = quisk_pc_to_hermes[offset++];		// C2
 	sendbuf[14] = quisk_pc_to_hermes[offset++];		// C3
 	sendbuf[15] = quisk_pc_to_hermes[offset++];		// C4
-	if (C0_index == 0) {	// Do not change receiver count without stopping Hermes and restarting
+	switch (C0_index) {
+	case 0:	// Do not change receiver count without stopping Hermes and restarting
 		sendbuf[15] = quisk_multirx_count << 3 | 0x04;	// Send the old count, not the changed count
 		if (hermes_mox_bit)		// send filter selection on J16
 			sendbuf[13] = hermes_filter_tx << 1;
 		else
 			sendbuf[13] = hermes_filter_rx << 1;
+		break;
+	case 2:		// Rx1 frequency
+		rx1_freq[0] = sendbuf[12];
+		rx1_freq[1] = sendbuf[13];
+		rx1_freq[2] = sendbuf[14];
+		rx1_freq[3] = sendbuf[15];
+		break;
+	case 3:		// Rx2 frequency
+		if (PsInUse && hermes_mox_bit) {
+			sendbuf[12] = rx1_freq[0];
+			sendbuf[13] = rx1_freq[1];
+			sendbuf[14] = rx1_freq[2];
+			sendbuf[15] = rx1_freq[3];
+		}
+		break;
+	case 10:
+		if (PsInUse && hermes_mox_bit)
+			sendbuf[13] |= 0x40;	// assert pure signal
+		break;
 	}
-        else if ( ! quisk_is_vna && C0_index == 9) {
-        }
 	if (++C0_index > 16)
 		C0_index = 0;
 	pt_buf = sendbuf + 16;
@@ -1030,15 +1053,33 @@ void quisk_hermes_tx_send(int tx_socket, int * tx_records)
 		sendbuf[525] = quisk_pc_to_hermes[offset++];		// C2
 		sendbuf[526] = quisk_pc_to_hermes[offset++];		// C3
 		sendbuf[527] = quisk_pc_to_hermes[offset++];		// C4
-		if (C0_index == 0) {
-			sendbuf[527] = quisk_multirx_count << 3 | 0x04;		// Send the old count, not the changed count
+		switch (C0_index) {
+		case 0:	// Do not change receiver count without stopping Hermes and restarting
+			sendbuf[527] = quisk_multirx_count << 3 | 0x04;	// Send the old count, not the changed count
 			if (hermes_mox_bit)		// send filter selection on J16
 				sendbuf[525] = hermes_filter_tx << 1;
 			else
 				sendbuf[525] = hermes_filter_rx << 1;
+			break;
+		case 2:		// Rx1 frequency
+			rx1_freq[0] = sendbuf[524];
+			rx1_freq[1] = sendbuf[525];
+			rx1_freq[2] = sendbuf[526];
+			rx1_freq[3] = sendbuf[527];
+			break;
+		case 3:		// Rx2 frequency
+			if (PsInUse && hermes_mox_bit) {
+				sendbuf[524] = rx1_freq[0];
+				sendbuf[525] = rx1_freq[1];
+				sendbuf[526] = rx1_freq[2];
+				sendbuf[527] = rx1_freq[3];
+			}
+			break;
+		case 10:
+			if (PsInUse && hermes_mox_bit)
+				sendbuf[525] |= 0x40;	// assert pure signal
+			break;
 		}
-                else if ( ! quisk_is_vna && C0_index == 9) {
-                }
 		if (++C0_index > 16)
 			C0_index = 0;
 	}
@@ -1104,12 +1145,47 @@ static void transmit_udp(complex double * cSamples, int count)
 
 static void transmit_mic_carrier(complex double * cSamples, int count, double level)
 {	// send a CW carrier instead of mic samples
+#if 0
+	// transmit a saw tooth
+	static int up = 1;
+	static int ramp = 0;
+	int i;
+	int max = 5000;
+	static int pause = 5000 / 10;
+	int half_max = (int)(0.1 / 0.2339 * max);
+	for (i = 0; i < count; i++) {
+		cSamples[i] = (double)ramp / max * CLIP16;
+		if (ramp == half_max && pause) {
+			pause--;
+		}
+		else if (up) {
+			if (ramp == max) {
+				up = 0;
+				pause = max / 10;
+			}
+			else {
+				ramp += 1;
+			}
+		}
+		else {
+			if (ramp == 0) {
+				up = 1;
+				pause = max / 10;
+			}
+			else {
+				ramp -= 1;
+			}
+		}
+		//printf("Ramp %d\n", ramp);
+	}
+#endif
 #if 1
 	// transmit a carrier equal to the number of samples
 	int i;
 	for (i = 0; i < count; i++)
 		cSamples[i] = level * CLIP16;
-#else
+#endif
+#if 0
 	// replace mic samples with a sin wave
 	int i;
 	double freq;
@@ -1464,14 +1540,16 @@ PyObject * quisk_get_tx_audio(PyObject * self, PyObject * args)
 	return Py_None;
 }
 
+
 PyObject * quisk_set_tx_audio(PyObject * self, PyObject * args, PyObject * keywds)
 {  /* Call with keyword arguments ONLY; change Tx audio parameters */
 	static char * kwlist[] = {"vox_level", "vox_time", "mic_clip", "mic_preemphasis", "tx_sample_rate",
-		"reverse_tx_sideband", NULL} ;
+		"reverse_tx_sideband", "PsEnable", "PsCal", NULL} ;
 	int vlevel = -9999, clevel = -9999;
 
-	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiidii", kwlist,
-			&vlevel, &timeVOX, &clevel, &quisk_mic_preemphasis, &tx_sample_rate, &reverse_tx_sideband))
+	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiidiiii", kwlist,
+			&vlevel, &timeVOX, &clevel, &quisk_mic_preemphasis, &tx_sample_rate, &reverse_tx_sideband,
+			&PsEnable, &PsCal))
 		return NULL;
 	if (vlevel != -9999)
 		vox_level = (int)(pow(10.0, vlevel / 20.0) * CLIP16);	// Convert dB to 16-bit sample
@@ -1639,5 +1717,529 @@ static void serial_key_samples(complex double * cSamples, int count)	// called f
 			}
 		}
 		cSamples[i] = ampl * CLIP16;
+	}
+}
+
+static void spline(double x[], double y[], int n, double yp1, double ypn, double y2[])
+{
+	int i,k;
+	double p,qn,sig,un,*u;
+
+	u = (double *)malloc(n * sizeof(double));
+	if (yp1 > 0.99e30)
+		y2[1]=u[1]=0.0;
+	else {
+		y2[1] = -0.5;
+		u[1]=(3.0/(x[2]-x[1]))*((y[2]-y[1])/(x[2]-x[1])-yp1);
+	}
+	for (i=2;i<=n-1;i++) {
+		sig=(x[i]-x[i-1])/(x[i+1]-x[i-1]);
+		p=sig*y2[i-1]+2.0;
+		y2[i]=(sig-1.0)/p;
+		u[i]=(y[i+1]-y[i])/(x[i+1]-x[i]) - (y[i]-y[i-1])/(x[i]-x[i-1]);
+		u[i]=(6.0*u[i]/(x[i+1]-x[i-1])-sig*u[i-1])/p;
+	}
+	if (ypn > 0.99e30)
+		qn=un=0.0;
+	else {
+		qn=0.5;
+		un=(3.0/(x[n]-x[n-1]))*(ypn-(y[n]-y[n-1])/(x[n]-x[n-1]));
+	}
+	y2[n]=(un-qn*u[n-1])/(qn*y2[n-1]+1.0);
+	for (k=n-1;k>=1;k--)
+		y2[k]=y2[k]*y2[k+1]+u[k];
+	free(u);
+}
+
+static void polint(double xa[], double ya[], double x, double *y)
+{
+	int i,m,ns=1;
+	double den,dif,dift,ho,hp,w, dy;
+	double c[4], d[4];
+
+	dif=fabs(x-xa[1]);
+	for (i=1;i<=3;i++) {
+		if ( (dift=fabs(x-xa[i])) < dif) {
+			ns=i;
+			dif=dift;
+		}
+		c[i]=ya[i];
+		d[i]=ya[i];
+	}
+	*y=ya[ns--];
+	for (m=1;m<3;m++) {
+		for (i=1;i<=3-m;i++) {
+			ho=xa[i]-x;
+			hp=xa[i+m]-x;
+			w=c[i+1]-d[i];
+			den = ho - hp;
+			if ( (den=ho-hp) == 0.0)
+				printf("Error in routine polint\n");
+			den=w/den;
+			d[i]=hp*den;
+			c[i]=ho*den;
+		}
+		*y += (dy=(2*ns < (3-m) ? c[ns+1] : d[ns--]));
+	}
+}
+
+static void splint(double xa[], double ya[], double y2a[], int n, double x, double *y)
+{
+	static int klo = 1;
+	int khi,k;
+	double h,b,a;
+
+	khi = klo + 1;
+	if (x < xa[klo] || x > xa[khi]) {
+		klo=1;
+		khi=n;
+		while (khi-klo > 1) {
+			k=(khi+klo) >> 1;
+			if (xa[k] > x) khi=k;
+			else klo=k;
+		}
+	}
+	h=xa[khi]-xa[klo];
+	if (h == 0.0)
+		printf("Bad xa input to routine splint\n");
+	a=(xa[khi]-x)/h;
+	b=(x-xa[klo])/h;
+	*y=a*ya[klo]+b*ya[khi]+((a*a*a-a)*y2a[klo]+(b*b*b-b)*y2a[khi])*(h*h)/6.0;
+}
+
+#define NUM_BINS	21
+#define BIN_SPACING	(1.0 / (NUM_BINS - 1))
+#define BIN_TOL		(BIN_SPACING * 0.20)
+#define BLOCK_MSECS	2000		// Time of one data block.
+#define MILLISECS(x)	(48 * (x))	// Convert milliseconds to samples at 48000 samples per second.
+#define DEBUG_PS	0
+#define HOLD		0		// Make calibration run permanent
+#define RX1_GAIN	0.238
+void PreDistort(complex double * amp_in_samples, complex double * amp_out_samples, int nSamples, complex double * tx_samples, int num_tx)
+{
+	int i, bin, num_bin_data;
+	double G0, phase, mag_in, mag_out, new_mag, aaa, ppp;
+	double error, xp, xpg, xp0, xpg0;
+	double quadX[4], quadY[4], quadZ[4];
+	complex double in_sample, out_sample;
+	static int state = 0;
+	static int Fault;
+	static int isCalibrated = 0;
+	static int ramp_counter, ramp_count0;
+	static int input_samples = 0;
+	static double tx_to_RX1_gain = 0;
+	static double max_out_mag, starting_phase;
+#if DEBUG_PS
+	static double clip_tx, clip_mag_in, clip_aaa;
+#endif
+#if DEBUG_PS > 2
+	static int old_state;
+	static double time0;
+#endif
+	static int spline_P_size;
+	static double spline_P_X[NUM_BINS + 1];
+	static double spline_P_mag[NUM_BINS + 1];
+	static double spline_P_mag2[NUM_BINS + 1];
+	static double spline_P_phase[NUM_BINS + 1];
+	static double spline_P_phase2[NUM_BINS + 1];
+
+	struct BPD {
+		int XP_count;
+		double table_XP;
+		double XP_mag;
+		double mag_X;
+		double mag_P;
+		double phase_P;
+		complex double XP_gain;
+		double XP_gain_mag;
+		double XP_gain_phase;
+	};
+	static struct BPD Bins[NUM_BINS];
+		
+	static enum {
+		NothingHappens,
+		SendCW,
+		StopCW
+	} tx_state = NothingHappens;
+
+	if (quisk_multirx_count == 0) {
+		state = 0;
+		return;
+	}
+	if (PsCal) {
+		if (state == 0) {
+			isCalibrated = 0;
+			state = 10;
+#if DEBUG_PS > 2
+			time0 = QuiskTimeSec();
+#endif
+		}
+	}
+	else if ( ! PsEnable) {
+		state = 0;
+		return;
+	}
+	else if ( ! hermes_mox_bit) {
+		state = 0;
+		return;
+	}
+
+	if (num_tx) {
+		input_samples += num_tx;
+		if (isCalibrated) {	// perform predistortion of Tx samples; multiply input X by P
+			for (i = 0; i < num_tx; i++) {
+				mag_in = cabs(tx_samples[i]) / CLIP16;
+				splint(spline_P_X, spline_P_mag, spline_P_mag2, spline_P_size, mag_in, &aaa);
+				splint(spline_P_X, spline_P_phase, spline_P_phase2, spline_P_size, mag_in, &ppp);
+				tx_samples[i] *= aaa * cexp(I * ppp);
+				new_mag = mag_in * aaa;
+				if (new_mag > 1.0) {
+					tx_samples[i] /= new_mag;
+#if DEBUG_PS
+					if (new_mag > 1.0001 && new_mag > clip_tx) {
+						clip_tx = new_mag;
+						clip_mag_in = mag_in;
+						clip_aaa = aaa;
+					}
+#endif
+				}
+			}
+		}
+		switch (tx_state) {
+		case NothingHappens:
+		default:
+			break;
+		case SendCW:	// Start sending a CW carrier.
+			for (i = 0; i < num_tx; i++) {
+				if (ramp_counter > 0)	// slow increase
+					tx_samples[i] = CLIP16 * (1.0 - (double)ramp_counter-- / ramp_count0);
+				else
+					tx_samples[i] = CLIP16;
+			}
+			break;
+		case StopCW:	// Stop sending a CW carrier.
+			for (i = 0; i < num_tx; i++) {
+				if (ramp_counter > 0)	// slow decrease
+					tx_samples[i] = (double)CLIP16 * ramp_counter-- / ramp_count0;
+				else
+					tx_samples[i] = 0;
+			}
+			break;
+		}
+	}
+
+	if (nSamples <= 0)
+		return;
+
+#if DEBUG_PS > 2
+	if (state != old_state) {
+		aaa = cabs(amp_in_samples[0] / CLIP32);
+		printf("State %2d time %6.3lf sample %12.6f\n", old_state, QuiskTimeSec() - time0, aaa);
+		old_state = state;
+		time0 = QuiskTimeSec();
+	}
+#endif
+
+	switch (state) {
+	case 0:		// Start a timer
+		tx_state = NothingHappens;
+		input_samples = 0;
+		starting_phase = 0;
+		if ( ! HOLD)
+			state++;
+		break;
+	case 1:
+		if (input_samples >= MILLISECS(200)) {
+#if DEBUG_PS
+			clip_tx = 0.0;
+#endif
+			for (bin = 0; bin < NUM_BINS; bin++) {		// initialize
+				Bins[bin].XP_count = 0;
+				Bins[bin].XP_mag = 0;
+				Bins[bin].XP_gain = 0;
+			}
+			input_samples = 0;
+			state++;
+		}
+		break;
+	case 2:
+	case 15:
+		if (input_samples >= MILLISECS(BLOCK_MSECS)) {
+			num_bin_data = 0;
+			Fault = 0;
+			for (bin = 0; bin < NUM_BINS; bin++) {
+				if (Bins[bin].XP_count) {
+					num_bin_data++;
+					Bins[bin].XP_mag /= Bins[bin].XP_count;
+					Bins[bin].XP_gain /= Bins[bin].XP_count;
+					if (starting_phase == 0 && bin >= NUM_BINS / 2) {
+						starting_phase = carg(Bins[bin].XP_gain);
+#if DEBUG_PS
+						printf("starting_phase %.3f\n", starting_phase);
+#endif
+					}
+				}
+			}
+			if (PsCal && num_bin_data < NUM_BINS - 4) {
+				printf("PS calibration failed to fill all bins ");
+				for (bin = 0; bin < NUM_BINS; bin++)
+					if (Bins[bin].XP_count)
+						printf("1");
+					else
+						printf("0");
+				printf("\n");
+				Fault = 1;
+			}
+			state++;
+		}
+		else {
+			for (i = 0; i < nSamples; i++) {
+				in_sample = amp_in_samples[i] / CLIP32 / RX1_GAIN;
+				mag_in = cabs(in_sample);
+				if (tx_to_RX1_gain < mag_in) {
+					tx_to_RX1_gain = mag_in;
+#if DEBUG_PS > 2
+					printf("tx RX1 gain %.6f, max_out_mag %.6f\n", tx_to_RX1_gain, max_out_mag);
+#endif
+				}
+				bin = (int)(mag_in / BIN_SPACING + 0.5);
+				if ( ! bin)
+					continue;
+				error = fabs(mag_in - Bins[bin].table_XP);
+				if (error < BIN_TOL) {
+					out_sample = amp_out_samples[i] / CLIP32;
+					Bins[bin].XP_gain += out_sample / in_sample;
+					Bins[bin].XP_mag += mag_in;
+					Bins[bin].XP_count++;
+				}
+			}
+			if (state == 15) {
+				if (tx_state != StopCW) {
+					ramp_counter = ramp_count0 = MILLISECS(BLOCK_MSECS - 500);
+					tx_state = StopCW;
+				}
+			}
+		}
+		break;
+	case 3:
+	case 16:
+#if DEBUG_PS
+		if (clip_tx != 0.0) {
+			printf ("clip output sample %.6f, mag_in %.6f, predistort %.6f\n", clip_tx, clip_mag_in, clip_aaa);
+			clip_tx = 0.0;
+		}
+#endif
+		for (bin = 1; bin < NUM_BINS - 1; bin++) {
+			if (Bins[bin].XP_count > 0) {	// This bin has data.
+				Bins[bin].XP_gain_mag = cabs(Bins[bin].XP_gain);
+				phase = carg(Bins[bin].XP_gain) - starting_phase;
+				if (phase < - M_PI)
+					phase += 2 * M_PI;
+				else if (phase > M_PI)
+					phase -= 2 * M_PI;
+				Bins[bin].XP_gain_phase = phase;
+			}
+			else {
+				Bins[bin].XP_gain_mag = 1.0;
+				Bins[bin].XP_gain_phase = 0.0;
+			}
+		}
+		Bins[0].XP_count = 1;
+		Bins[0].XP_mag = 0.0;
+		i = 1;
+		for (bin = 1; bin < 6; bin++) {
+			if (Bins[bin].XP_count) {
+				quadX[i] = Bins[bin].XP_mag;
+				quadY[i] = Bins[bin].XP_gain_mag;
+				quadZ[i] = Bins[bin].XP_gain_phase;
+				if (i == 3)
+					break;
+				i++;
+			}
+		}
+		if (i == 3) {
+			polint(quadX, quadY, 0.0, &Bins[0].XP_gain_mag);
+			polint(quadX, quadZ, 0.0, &Bins[0].XP_gain_phase);
+		}
+		else {
+			Bins[0].XP_gain_mag = 1.0;
+			Bins[0].XP_gain_phase = 0.0;
+			Fault = 1;
+			if (DEBUG_PS || PsCal)
+				printf("Failure to find G0 at zero\n");
+		}
+
+		Bins[NUM_BINS - 1].XP_count = 1;
+		Bins[NUM_BINS - 1].XP_mag = 1.0;
+		i = 3;
+		for (bin = NUM_BINS - 2; bin >= NUM_BINS - 6; bin--) {
+			if (Bins[bin].XP_count) {
+				quadX[i] = Bins[bin].XP_mag;
+				quadY[i] = Bins[bin].XP_gain_mag;
+				quadZ[i] = Bins[bin].XP_gain_phase;
+				if (--i == 0)
+					break;
+			}
+		}
+		if (i == 0) {
+			polint(quadX, quadY, 1.0, &Bins[NUM_BINS - 1].XP_gain_mag);
+			polint(quadX, quadZ, 1.0, &Bins[NUM_BINS - 1].XP_gain_phase);
+		}
+		else {
+			Bins[NUM_BINS - 1].XP_gain_mag = 1.0;
+			Bins[NUM_BINS - 1].XP_gain_phase = 0.0;
+			Fault = 1;
+			if (DEBUG_PS || PsCal)
+				printf("Failure to find G0 at one\n");
+		}
+		state++;
+		break;
+	case 4:
+	case 17:
+		G0 = Bins[NUM_BINS - 1].XP_gain_mag;
+		num_bin_data = 0;
+		xp0 = -1.0;
+		xpg0 = -1.0;
+		for (bin = 0; bin < NUM_BINS; bin++) {
+			if (bin == NUM_BINS - 1) {
+				num_bin_data++;
+				Bins[NUM_BINS - 1].mag_P = 1.0;
+				Bins[NUM_BINS - 1].phase_P = - Bins[NUM_BINS - 1].XP_gain_phase;
+				Bins[NUM_BINS - 1].mag_X = 1.0;
+			}
+			else if (Bins[bin].XP_count) {
+				num_bin_data++;
+				Bins[bin].mag_P = G0 / Bins[bin].XP_gain_mag;
+				Bins[bin].phase_P = - Bins[bin].XP_gain_phase;
+				Bins[bin].mag_X = Bins[bin].XP_mag / Bins[bin].mag_P;
+				xp = Bins[bin].mag_X * Bins[bin].mag_P;
+				if (xp < xp0) {
+					if (DEBUG_PS || PsCal)
+						printf("xp is not monotonic at bin %d\n", bin);
+					Fault = 1;
+				}
+				xpg = xp * Bins[bin].XP_gain_mag;
+				if (xpg < xpg0) {
+					if (DEBUG_PS || PsCal)
+						printf("xpg is not monotonic at bin %d\n", bin);
+					Fault = 1;
+				}
+				xp0 = xp;
+				xpg0 = xpg;
+			}
+			else {
+				Bins[bin].mag_P = 0.0;
+				Bins[bin].phase_P = 0.0;
+				Bins[bin].mag_X = 0.0;
+			}
+		}
+		if (num_bin_data < NUM_BINS  * 7 / 10) {
+			if (DEBUG_PS || state == 17)
+				printf("Not enough data for corrections %d\n", num_bin_data);
+			Fault = 1;
+		}
+		if ( ! Fault) {
+#if DEBUG_PS
+			printf("Create a new predistortion\n");
+#endif
+			spline_P_size = 0;
+			for (bin = 0; bin < NUM_BINS; bin++) {
+				if (Bins[bin].XP_count) {
+					spline_P_size++;
+					spline_P_X[spline_P_size] = Bins[bin].mag_X;
+					spline_P_mag[spline_P_size] = Bins[bin].mag_P;
+					spline_P_phase[spline_P_size] = Bins[bin].phase_P;
+				}
+			}
+
+			spline(spline_P_X, spline_P_mag, spline_P_size, 2E30, 2E30, spline_P_mag2);
+			spline(spline_P_X, spline_P_phase, spline_P_size, 2E30, 2E30, spline_P_phase2);
+		}
+		state++;
+		break;
+	case 5:	
+	case 18:
+#if DEBUG_PS
+		if (Fault)
+			printf("Data for predistortion was rejected\n");
+		printf("\n");
+#endif
+		input_samples = 0;
+		state++;
+		break;
+	case 6:
+		if ( ! HOLD)
+			state = 1;
+		input_samples = 0;
+		break;
+	case 10:
+		isCalibrated = 0;
+		input_samples = 0;
+		quisk_set_key_down(1);
+		max_out_mag = 0;
+		tx_to_RX1_gain = 0;
+		starting_phase = 0;
+		ramp_counter = ramp_count0 = MILLISECS(10);
+#if DEBUG_PS
+		clip_tx = 0.0;
+#endif
+		for (bin = 0; bin < NUM_BINS; bin++) {
+			Bins[bin].table_XP = BIN_SPACING * bin;
+			Bins[bin].XP_mag = 0;
+			Bins[bin].XP_count = 0;
+			Bins[bin].XP_gain = 0;
+		}
+		tx_state = SendCW;
+		state++;
+		break;
+	case 11:
+		if (input_samples >= MILLISECS(400)) {
+			input_samples = 0;
+			state++;
+		}
+		if (input_samples >= MILLISECS(50) && cabs(amp_in_samples[0]) / CLIP32 / RX1_GAIN > 0.1) {
+			input_samples = 0;
+			state++;
+		}
+		break;
+	case 12:
+		if (input_samples >= MILLISECS(200)) {
+			state++;
+		}
+		else {
+			for (i = 0; i < nSamples; i++) {
+				in_sample = amp_in_samples[i] / CLIP32;
+				mag_in = cabs(in_sample);
+				if (tx_to_RX1_gain < mag_in)
+					tx_to_RX1_gain = mag_in;
+				out_sample = amp_out_samples[i] / CLIP32;
+				mag_out = cabs(out_sample);
+				if (max_out_mag < mag_out)
+					max_out_mag = mag_out;
+			}
+		}
+		break;
+	case 13:
+#if DEBUG_PS
+		printf("tx RX1 gain %.5f, max_out_mag %.6f\n", tx_to_RX1_gain, max_out_mag);
+#endif
+		if (fabs(tx_to_RX1_gain - RX1_GAIN) / RX1_GAIN > 1E-2)
+			printf("Measured %.6f and assumed %.6f RX1 gain differ\n", tx_to_RX1_gain, RX1_GAIN);
+		input_samples = 0;
+		state++;
+		break;
+	case 14:
+		input_samples = 0;
+		state++;
+		break;
+	case 19:
+		quisk_set_key_down(0);
+		tx_state = NothingHappens;
+		PsCal = 0;
+		if ( ! Fault)
+			isCalibrated = 1;
+		input_samples = 0;
+		state = 0;
+		break;
 	}
 }

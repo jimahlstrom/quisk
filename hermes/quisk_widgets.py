@@ -8,6 +8,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import math, wx, time
+import _quisk as QS
 from configure import ComboCtrl
 
 
@@ -24,8 +25,14 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
   def Widgets_0x06(self, app, hardware, conf, frame, gbs, vertBox):
     self.num_rows_added = 1
     start_row = self.start_row
+    self.btnPS = app.QuiskCheckbutton(frame, self.OnBtnPS, text='PS')
+    self.btnPS.Enable(False)
+    gbs.Add(self.btnPS, (start_row, self.start_col), flag=wx.EXPAND)
+    self.btnPsCal = app.QuiskPushbutton(frame, self.OnBtnPsCal, 'PS Cal')
+    self.btnPsCal.active = False
+    gbs.Add(self.btnPsCal, (start_row, self.start_col + 1), flag=wx.EXPAND)
     self.atu_ctrl = ComboCtrl(frame, "ATU", ["Tune", "Bypass"], True)
-    gbs.Add(self.atu_ctrl, (start_row, self.start_col), (1, 2), flag=wx.EXPAND)
+    gbs.Add(self.atu_ctrl, (start_row, self.start_col + 2), (1, 2), flag=wx.EXPAND)
     bw, bh = self.atu_ctrl.GetMinSize()
     frame.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.OnAtu)
     init = app.hermes_LNA_dB
@@ -33,7 +40,7 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
     self.sliderLNA.idName = "RfLna"
     app.midiControls["RfLna"]	= (self.sliderLNA,	self.OnLNA)
     hardware.ChangeLNA(init)
-    gbs.Add(self.sliderLNA, (start_row, self.start_col + 2), (1, 8), flag=wx.EXPAND)
+    gbs.Add(self.sliderLNA, (start_row, self.start_col + 4), (1, 6), flag=wx.EXPAND)
     if conf.button_layout == "Small screen":
       # Display four data items in a single window
       self.text_temperature = app.QuiskText1(frame, '', bh)
@@ -93,6 +100,20 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
     value = self.sliderLNA.GetValue()
     self.hardware.ChangeLNA(value)
     self.application.hermes_LNA_dB = value
+  def OnBtnPS(self, event):
+    if self.btnPS.GetValue():
+      QS.set_tx_audio(PsEnable=1)
+      self.btnPsCal.Enable(False)
+    else:
+      QS.set_tx_audio(PsEnable=0)
+      self.btnPsCal.Enable(True)
+  def OnBtnPsCal(self, event):
+    if len(self.application.multi_rx_screen.receiver_list) == 0:
+      self.application.multi_rx_screen.OnAddReceiver(event=None, hide_it=True)
+    self.btnPS.Enable(False)
+    self.btnPsCal.active = True
+    self.btnPsCal.SetColor(self.config.color_check_btn)
+    QS.set_tx_audio(PsCal=1)
   def Code2Temp(self):		# Convert the HermesLite temperature code to the temperature
     temp = self.hardware.hermes_temperature
     # For best accuracy, 3.26 should be a user's measured 3.3V supply voltage.
@@ -117,7 +138,13 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
       return fwd, rev
     else:
       return rev, fwd
-  def UpdateText(self):
+  def UpdateText(self):		# Called at intervals
+    # Button state
+    if self.btnPsCal.active:
+      if not QS.get_tx_audio("PsCal"):
+        self.btnPsCal.active = False
+        self.btnPsCal.SetColorNormal()
+        self.btnPS.Enable(True)
     # Temperature
     temp = self.Code2Temp()
     temp = (" Temp %3.0f" % temp) + u'\u2103'

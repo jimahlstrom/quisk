@@ -75,6 +75,7 @@ h3     {font-size:1.6rem;}
 <li><a href="#wsjtx">WSJT-X</a></li>
 <li><a href="#freedv">FreeDV</a></li>
 <li><a href="#wdsp">NR2 and WDSP</a></li>
+<li><a href="#pure">Pure Signal</a></li>
 <li><a href="#VNA">VNA</a></li>
 <li><a href="#Remote">Remote Operation</a></li>
 </ul>
@@ -1625,6 +1626,24 @@ quisk/wdsp directory and entering "make". The library is used in-place and no in
 <br>
 <p>
 The new "trained" method of NR2 is included. Press the NR2 button twice to select "NR2t".
+</p>
+<br><br>
+<h2 id="pure">Pure Signal</h2>
+<p>
+Pure Signal is a term used to describe baseband predistortion, a technique used to reduce IMD products
+caused by a non-linear power amp. Pure Signal is available for the Hermes Lite2.
+To use it first press the PsCal button to create a calibration. This will key a two second CW carrier.
+Then press PS to enable corrections. You can view the result by using the "FDX" button to see the Tx output.
+The feature is automatic and no settings are required. You can re-calibrate if you change bands, but this is not
+really necessary.
+</p>
+<br>
+<p>
+You need to supply a sample of the amplifier output so Pure Signal can correct it. First set the "LNA during Tx dB" to
+the minimum gain of -12 on the Hermes Hardware screen. This minimizes the preamp gain and the noise picked up from the HL2 board.
+Then provide a Tx sample much above the remaining board noise but below clipping. Use the FDX button to see the Tx output
+with and without the Tx sample connected. Twenty or thirty dB over board noise should be enough. To learn how to provide a Tx
+signal sample, see <a href="https://github.com/softerhardware/Hermes-Lite2/wiki/PureSignal">the HL2 Pure Signal wiki</a>.
 </p>
 <br><br>
 <h2 id="VNA">Vector Network Analyzer</h2>

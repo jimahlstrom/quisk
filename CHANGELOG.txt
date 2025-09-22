@@ -1,3 +1,9 @@
+Quisk Version 4.2.44  September 2025
+====================================
+Quisk now has Pure Signal for the Hermes Lite2. This is baseband predistortion to reduce IMD products.
+To use it, press "PsCal" for calibration, and "PS" to enable Pure Signal. There are no adjustments needed.
+More details are in the documentation.
+
 Quisk Version 4.2.43  September 2025
 ====================================
 I fixed a bug in the WDSP library NR2 noise reduction feature. I added the "Trained" method of NR2.

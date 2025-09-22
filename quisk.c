@@ -3851,7 +3851,7 @@ static int read_rx_udp10(complex double * samp)	// Read samples from UDP using t
 			}
 		}
 	}
-	//PreDistort(multirx_cSamples[0], samp, nSamples, NULL, 0);	//amp in samples, amp out samples, count
+	PreDistort(multirx_cSamples[0], samp, nSamples, NULL, 0);	//amp in samples, amp out samples, count
 #if 0
 	float mag_in, mag_out;
 	complex float gain;
