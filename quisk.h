@@ -312,10 +312,6 @@ extern int quisk_active_sidetone;		// Whether and how to generate a sidetone
 extern int quisk_isFDX;				// Are we in full duplex mode?
 extern int quisk_use_serial_port;		// Are we using the serial port for CW key or PTT?
 extern play_state_t quisk_play_state;		// startup, receiving, sidetone
-extern int freedv_current_mode;			// current FreeDV mode; 700D, @)@) etc.
-extern int n_modem_sample_rate;			// Receive data, decimate to modem_sample_rate, FreeDV codec output data at speech_sample_rate
-extern int n_speech_sample_rate;		// Microphone decimate to speech_sample_rate, Freedv codec output data at modem_sample_rate, interpolate to 48000
-extern int n_max_modem_samples;			// maximum input to freedv_rx()
 extern int quisk_start_cw_delay;		// milliseconds to delay output on serial or MIDI CW key down
 extern int quisk_start_ssb_delay;		// milliseconds to discard output for all modes except CW
 extern struct sound_dev * quiskPlaybackDevices[];	// array of Playback sound devices
@@ -346,14 +342,7 @@ extern PyObject * quisk_set_hermes_filter(PyObject *, PyObject *);
 extern PyObject * quisk_set_alex_hpf(PyObject *, PyObject *);
 extern PyObject * quisk_set_alex_lpf(PyObject *, PyObject *);
 
-extern PyObject * quisk_freedv_open(PyObject *, PyObject *);
-extern PyObject * quisk_freedv_close(PyObject *, PyObject *);
-extern PyObject * quisk_freedv_get_snr(PyObject *, PyObject *);
-extern PyObject * quisk_freedv_get_version(PyObject *, PyObject *);
-extern PyObject * quisk_freedv_get_rx_char(PyObject *, PyObject *);
-extern PyObject * quisk_freedv_set_options(PyObject *, PyObject *, PyObject *);
 extern PyObject * quisk_set_sparams(PyObject *, PyObject *, PyObject *);
-extern PyObject * quisk_freedv_set_squelch_en(PyObject *, PyObject *);
 extern PyObject * quisk_open_key(PyObject *, PyObject *, PyObject *);
 extern PyObject * quisk_close_key(PyObject *, PyObject *);
 extern PyObject * quisk_set_sound_name(PyObject *, PyObject *);
@@ -397,7 +386,6 @@ void quisk_file_playback(complex double *, int, double);
 void quisk_tmp_playback(complex double *, int, double);
 void quisk_hermes_tx_send(int, int *);
 void quisk_udp_mic_error(char *);
-void quisk_check_freedv_mode(void);
 void quisk_calc_audio_graph(double, complex double *, double *, int, int);
 double QuiskDeltaSec(int);
 void * quisk_make_sidetone(struct sound_dev *, int);
@@ -406,12 +394,6 @@ int quisk_play_sidetone(struct sound_dev *);
 void quisk_set_play_state(void);
 void quisk_poll_hardware_key(void);
 void PreDistort(complex double * amp_in_samples, complex double * amp_out_samples, int nSamples, complex double * tx_samples, int num_tx);
-
-// Functions supporting digital voice codecs
-typedef int  (* ty_dvoice_codec_rx)(short *, double *, int, int);
-typedef int  (* ty_dvoice_codec_tx)(complex double *, double *, int, int);
-extern ty_dvoice_codec_rx  pt_quisk_freedv_rx;
-extern ty_dvoice_codec_tx  pt_quisk_freedv_tx;
 
 // Driver function definitions=================================================
 int  quisk_read_alsa(struct sound_dev *, complex double *);
@@ -468,7 +450,7 @@ int import_quisk_api(void);	// used to initialize Quisk_API
 #define QuiskSleepMicrosec	(*(	void	(*)	(int)			)Quisk_API[5])
 #define QuiskPrintTime		(*(	void	(*)	(const char *, int)	)Quisk_API[6])
 #define quisk_sample_source	(*(	void	(*)	(ty_sample_start, ty_sample_stop, ty_sample_read)	)Quisk_API[7])
-#define quisk_dvoice_freedv	(*(	void	(*)	(ty_dvoice_codec_rx, ty_dvoice_codec_tx)        	)Quisk_API[8])
+#define quisk_dvoice_freedv	(*(	void	(*)	(void)	        	)Quisk_API[8])
 #define quisk_is_key_down	(*(	int	(*)	(void)			                                )Quisk_API[9])
 #define quisk_sample_source4	(*(	void	(*)	(ty_sample_start, ty_sample_stop, ty_sample_read, ty_sample_write)	)Quisk_API[10])
 #define strMcpy                 (*(     char *  (*)     (char *, const char *, size_t)                          )Quisk_API[11])
@@ -483,7 +465,7 @@ double	QuiskTimeSec(void);
 void	QuiskSleepMicrosec(int);
 void	QuiskPrintTime(const char *, int);
 void	quisk_sample_source(ty_sample_start, ty_sample_stop, ty_sample_read);
-void	quisk_dvoice_freedv(ty_dvoice_codec_rx, ty_dvoice_codec_tx);
+void	quisk_dvoice_freedv(void);
 int	quisk_is_key_down(void);
 void	quisk_sample_source4(ty_sample_start, ty_sample_stop, ty_sample_read, ty_sample_write);
 char *  strMcpy(char *, const char *, size_t);

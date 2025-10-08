@@ -8,7 +8,6 @@
 #include <sys/types.h>
 #include "microphone.h"
 #include "filter.h"
-#include "freedv.h"
 
 #ifdef MS_WINDOWS
 #include <winsock2.h>
@@ -245,11 +244,9 @@ static void init_alc(struct alc * pt, int size)
 			case DGT_U:
 			case DGT_L:
 			case DGT_IQ:
-				pt->gain_now[i] = 1.4;
-				break;
 			case FDV_U:
 			case FDV_L:
-				pt->gain_now[i] = 2.0;
+				pt->gain_now[i] = 1.4;
 				break;
 			default:
 				pt->gain_now[i] = 1.0;
@@ -617,146 +614,12 @@ static int tx_filter_digital(complex double * filtered, int count)
 		quisk_filt_dInit(&filter1, quiskDgtFilt48Coefs, sizeof(quiskDgtFilt48Coefs)/sizeof(double));    // pass 1350, stop 1650
 	}
 	if ( ! filtered) {	// Change to rxMode
-		quisk_filt_tune(&filter1, 1650.0 / 48000, rxMode != DGT_L && rxMode != LSB);
+		quisk_filt_tune(&filter1, 1650.0 / 48000, rxMode != DGT_L && rxMode != LSB && rxMode != FDV_L);
 		return 0;
 	}
 	for (i = 0; i < count; i++)	// FIR bandpass filter; separate into I and Q
 		filtered[i] = quisk_dC_out(creal(filtered[i]), &filter1) * 2.00;	// tuned filter loss 0.5
 	//quisk_calc_audio_graph(CLIP16, filtered, NULL, count, 0);
-	return count;
-}
-
-static int tx_filter_freedv(complex double * filtered, int count, int encode)
-{	// Input samples are creal(filtered), output is filtered.
-	// This filter is used for digital voice.
-	// Changes by Dave Roberts, G8KBB, for additional modes June, 2020.
-	// Modified by N2ADR January, 2024.
-	int i;
-	// The input sample rate is mic_sample_rate, either 8000 or 48000 sps.
-	// The FreeDV codec requires an input speech_sample_rate of either 8000 or 16000 sps depending on the mode. Input is always real.
-	// The FreeDV codec will output samples at modem_sample_rate of 8000 or 48000 sps depending on the mode, and output may be real or complex.
-	double dtmp, magn, dsample;
-	int modem_sample_rate, speech_sample_rate, use_filter, is_real;
-	static int samples_size = 0;
-	static int do_init = 1;
-	static double aaa, bbb, ccc, Xmin, Xmax, Ymax;
-	static double time_long, time_short;
-	static double inMax=0.3;
-	static double * dsamples = NULL;
-	static struct quisk_cFilter filter1, filter2;
-	static struct quisk_dFilter filtDecim48to16, filtDecim16to8;;
-	static struct quisk_cFilter cfiltInterp8to48;
-
-	if (do_init) {		// initialization
-		//QuiskWavWriteOpen(&hWav, "jim.wav", 3, 1, 4, 8000, 1.0 / CLIP16);
-		do_init = 0;
-		quisk_filt_cInit(&filter1, quiskLpFilt48Coefs, sizeof(quiskLpFilt48Coefs)/sizeof(double));  // at 48000 sps pass 3000 stop 4000 times two plus 3000
-		quisk_filt_cInit(&filter2, quiskFilt53D2Coefs, sizeof(quiskFilt53D2Coefs)/sizeof(double));  // at 8000 sps pass 1500 stop 1800 times two plus 1500
-		quisk_filt_cInit(&cfiltInterp8to48, quiskLpFilt48Coefs, sizeof(quiskLpFilt48Coefs)/sizeof(double));
-		quisk_filt_dInit(&filtDecim48to16, quiskAudio24p3Coefs, sizeof(quiskAudio24p3Coefs)/sizeof(double));	// pass 6000 stop 8000
-		quisk_filt_dInit(&filtDecim16to8, quiskFilt16dec8Coefs, sizeof(quiskFilt16dec8Coefs)/sizeof(double));	// pass 3000 stop 4000
-		Ymax = pow(10.0,  - 1 / 20.0);				// maximum y
-		Xmax = pow(10.0,  3 / 20.0);				// x where slope is zero; for x > Xmax, y == Ymax
-		Xmin = Ymax - fabs(Ymax - Xmax);			// x where slope is 1 and y = x; start of compression
-		//printf ("Xmin %f\n", Xmin);
-		aaa = 1.0 / (2.0 * (Xmin - Xmax));			// quadratic
-		bbb = -2.0 * aaa * Xmax;
-		ccc = Ymax - aaa * Xmax * Xmax - bbb * Xmax;
-	}
-	switch (freedv_current_mode) {		// n_modem_sample_rate and n_speech_sample_rate may not be valid
-		case FREEDV_MODE_2400A:
-		case FREEDV_MODE_2400B:
-			use_filter = 1;		// center frequency 3000
-			is_real = 1;
-			modem_sample_rate = 48000;
-			speech_sample_rate = 8000;
-			break;
-		case FREEDV_MODE_2020:
-			use_filter = 0;
-			is_real = 0;
-			modem_sample_rate = 8000;
-			speech_sample_rate = 16000;
-			break;
-		case FREEDV_MODE_800XA:
-			use_filter = 2;		// center frequency 1500
-			is_real = 1;
-			modem_sample_rate = 8000;
-			speech_sample_rate = 8000;
-			break;
-		default:
-			use_filter = 0;
-			is_real = 0;
-			modem_sample_rate = 8000;
-			speech_sample_rate = 8000;
-			break;
-	}
-	if ( ! filtered) {	// rxMode changed
-		quisk_filt_tune((struct quisk_dFilter *)&filter1, 3000.0 / 48000.0, rxMode != FDV_L);
-		quisk_filt_tune((struct quisk_dFilter *)&filter2, 1500.0 / 8000.0, rxMode != FDV_L);
-		return 0;
-	}
-	// check size of dsamples[] buffer
-	if (count > samples_size) {
-		samples_size = count * 2;
-		if (dsamples)
-			free(dsamples);
-		dsamples = (double *)malloc(samples_size * sizeof(double));
-	}
-	// copy to dsamples[]
-	for (i = 0; i < count; i++)
-		dsamples[i] = creal(filtered[i]) / CLIP16;	// normalize to 1.0000
-	// Decimate to 8000 Hz or to 16000 depending on mode (and hence setting of sample rate)
-	if (quisk_sound_state.mic_sample_rate == 48000) {
-		switch (speech_sample_rate) {
-		case 16000:
-			count = quisk_dDecimate(dsamples, count, &filtDecim48to16, 3);
-			break;
-		case 8000:
-			count = quisk_dDecimate(dsamples, count, &filtDecim48to16, 3);
-			count = quisk_dDecimate(dsamples, count, &filtDecim16to8, 2);
-			break;
-		default:
-			QuiskPrintf("Failure to convert speech input rate in tx_filter_freedv\n");
-			break;
-		}
-	}
-	else if (quisk_sound_state.mic_sample_rate == 8000 && speech_sample_rate != 8000) {
-		QuiskPrintf("Failure to convert input rate in tx_filter_freedv\n");
-	}
-	// Measure average peak input audio level and limit
-	dtmp = 1.0 / speech_sample_rate;		// sample time
-	time_long   = 1.0 - exp(- dtmp / 3.000);
-	time_short  = 1.0 - exp(- dtmp / 0.005);
-	for (i = 0; i < count; i++) {
-		dsample = dsamples[i];
-		magn = fabs(dsample);
-		if (magn > inMax)
-			inMax = inMax * (1 - time_short) + time_short * magn;
-		else if(magn > mic_agc_level)
-			inMax = inMax * (1 - time_long) + time_long * magn;
-		else
-			inMax = inMax * (1 - time_long) + time_long * mic_agc_level;
-		dsample = dsample / inMax * Xmin * 0.7;
-		magn = fabs(dsample);
-		if (magn < Xmin)
-			dsamples[i] = dsample;
-		else if (magn > Xmax)
-			dsamples[i] = copysign(Ymax, dsample);
-		else
-			dsamples[i] = copysign(aaa * magn * magn + bbb * magn + ccc, dsample);
-		dsamples[i] = dsamples[i] * CLIP16;
-	}
-	//QuiskWavWriteD(&hWav, dsamples, count);
-	if (encode && pt_quisk_freedv_tx)   // Encode audio into digital modulation
-		count = (* pt_quisk_freedv_tx)(filtered, dsamples, count, is_real);
-	//quisk_calc_audio_graph(CLIP16, filtered, NULL, count, 0);
-	if (use_filter == 1)	// convert float samples to complex with an analytic filter
-		count = quisk_cCDecimate(filtered, count, &filter1, 1);
-	else if (use_filter == 2)
-		count = quisk_cCDecimate(filtered, count, &filter2, 1);
-	// Interpolate up to 48000
-	if (MIC_OUT_RATE != modem_sample_rate ) 
-		count = quisk_cInterpolate(filtered, count, &cfiltInterp8to48, MIC_OUT_RATE / modem_sample_rate);
 	return count;
 }
 
@@ -1397,17 +1260,14 @@ int quisk_process_microphone(int mic_sample_rate, complex double * cSamples, int
 		case DGT_L:
 		case DGT_IQ:
 		case DGT_FM:
+		case FDV_U:		// FreeDV
+		case FDV_L:
 			count = tx_filter_digital(cSamples, count);	// filter samples, minimal processing
 			process_alc(cSamples, count, &tx_alc, rxMode);
 			break;
 		case IMD:	// transmit IMD 2-tone test
 			count *= interp;
 			transmit_mic_imd(cSamples, count, quiskImdLevel / 1000.0);
-			break;
-		case FDV_U:	// FDV
-		case FDV_L:
-			count = tx_filter_freedv(cSamples, count, 1);
-			process_alc(cSamples, count, &tx_alc, rxMode);
 			break;
 		default:
 			break;
@@ -1497,11 +1357,6 @@ int quisk_process_microphone(int mic_sample_rate, complex double * cSamples, int
 			break;
 		case FM:		// FM
 			count = tx_filter(cSamples, count);
-			process_alc(cSamples, count, &tx_alc, rxMode);
-			break;
-		case FDV_U:	// FDV
-		case FDV_L:
-			count = tx_filter_freedv(cSamples, count, 0);
 			process_alc(cSamples, count, &tx_alc, rxMode);
 			break;
 		default:
@@ -1673,7 +1528,6 @@ void quisk_set_tx_mode(void)	// called when the mode rxMode is changed
 	tx_filter(NULL, 0);
 	tx_filter_digital(NULL, 0);
 	transmit_udp(NULL, 0);
-	tx_filter_freedv(NULL, 0, 0);
 	serial_key_samples(NULL, 0);
 }
 

@@ -292,9 +292,9 @@ class HamlibHandlerSerial:
 
   # Additional logic contributed by Dr. Karsten Schmidt
 
-  Mo2CoKen = {'CWL':7, 'CWU':3, 'LSB':1, 'USB':2, 'AM':5, 'FM':4, 'DGT-U':9, 'DGT-L':6, 'DGT-FM':4, 'DGT-IQ':9}
+  Mo2CoKen = {'CWL':7, 'CWU':3, 'LSB':1, 'USB':2, 'AM':5, 'FM':4, 'DGT-U':9, 'FDV-U':9, 'DGT-L':6, 'FDV-L':6, 'DGT-FM':4, 'DGT-IQ':9}
   Co2MoKen = {1:'LSB', 2:'USB', 3:'CWU', 4:'FM', 5:'AM', 6:'DGT-L', 7:'CWL', 9:'DGT-U'}
-  Mo2CoFlex = {'CWL':3, 'CWU':4, 'LSB':0, 'USB':1, 'AM':6, 'FM':5, 'DGT-U':7, 'DGT-L':9, 'DGT-FM':5, 'DGT-IQ':7}
+  Mo2CoFlex = {'CWL':3, 'CWU':4, 'LSB':0, 'USB':1, 'AM':6, 'FM':5, 'DGT-U':7, 'FDV-U':7, 'DGT-L':9, 'FDV-L':9, 'DGT-FM':5, 'DGT-IQ':7}
   Co2MoFlex = {0:'LSB', 1:'USB', 3:'CWL', 4:'CWU', 5:'FM', 6:'AM', 7:'DGT-U', 9:'DGT-L'}
   ConvertZZAC_P1_2_Step = { 0:     1,
                           1:    10,
@@ -1061,9 +1061,9 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
       mode = 'CW'
     elif mode == 'CWL':		# Is this what CWR means?
       mode = 'CWR'
-    elif mode == 'DGT-U':
+    elif mode in ('DGT-U', 'FDV-U'):
       mode = 'PKTUSB'
-    elif mode == 'DGT-L':
+    elif mode in ('DGT-L', 'FDV-L'):
       mode = 'PKTLSB'
     elif mode == 'DGT-FM':
       mode = 'PKTFM'
@@ -3727,7 +3727,7 @@ class App(wx.App):
   'txAudioPreemphUsb', 'txAudioPreemphAm', 'txAudioPreemphFm', 'txAudioPreemphFdv',
   'wfallScaleZ', 'wfallGrScaleZ', 'graphScaleZ', 'split_rxtx_play', 'modeFilter',
   'file_name_rec_audio', 'file_name_rec_samples', 'file_name_rec_mic', 'file_name_rec_tmp',
-  'file_name_play_audio', 'file_name_play_samples', 'file_name_play_cq', 'freedv_mode',
+  'file_name_play_audio', 'file_name_play_samples', 'file_name_play_cq',
   'file_play_source', 'hermes_LNA_dB']
   def __init__(self):
     global application
@@ -3948,8 +3948,6 @@ class App(wx.App):
     self.hot_key_ptt_active = False
     self.serial_ptt_active = False
     self.vox_ptt_active = False
-    self.freedv_mode = 'Mode 700D'		# restore FreeDV mode setting
-    self.freedv_menu = None
     self.hermes_LNA_dB = 20
     if hasattr(Hardware, "OnChangeRxTx"):
       self.want_RxTx = True
@@ -4711,8 +4709,6 @@ class App(wx.App):
       self.hamlib_com1_handler.close()
     if self.hamlib_com2_handler:
       self.hamlib_com2_handler.close()
-    if conf.add_freedv_button:
-      QS.freedv_close()
     msg = QS.GetQuiskPrintf()
     if msg:
       print(msg, end='')
@@ -5051,14 +5047,9 @@ class App(wx.App):
     self.config_screen.config.EnableRecPlay()
     ### Right bank of buttons
     mode_names = ['CWL', 'CWU', 'LSB', 'USB', 'AM', 'FM', 'DGT-U', 'DGT-L', 'DGT-FM', 'DGT-IQ', 'FDV-U', 'FDV-L', 'IMD']
-    labels = [('CWL', 'CWU'), ('LSB', 'USB'), 'AM', 'FM', ('DGT-U', 'DGT-L', 'DGT-FM', 'DGT-IQ')]
-    shortcuts = ['C', 'S', 'A', 'M', 'D']
-    count = 5	# There is room for seven buttons
-    if conf.add_freedv_button:
-      n_freedv = count
-      count += 1
-      labels.append('FDV-U')
-      shortcuts.append('F')
+    labels = [('CWL', 'CWU'), ('LSB', 'USB'), 'AM', 'FM', ('DGT-U', 'DGT-L', 'DGT-FM', 'DGT-IQ'), ('FDV-U', 'FDV-L')]
+    shortcuts = ['C', 'S', 'A', 'M', 'D', 'F']
+    count = 6	# There is room for seven buttons
     if conf.add_imd_button:
       n_imd = count
       count += 1
@@ -5080,43 +5071,11 @@ class App(wx.App):
       self.modeButns.buttons[0].idName = "CW U/L"
       self.modeButns.buttons[1].idName = "SSB U/L"
       self.modeButns.buttons[4].idName = "DGT"
+      self.modeButns.buttons[5].idName = "FDV"
     else:
       labels = ['CWL', 'CWU', 'LSB', 'USB', 'AM', 'FM', 'DGT-U', 'DGT-L', 'DGT-FM', 'DGT-IQ', 'FDV-U', 'IMD']
       self.modeButns = RadioBtnPopup(frame, self.OnBtnMode, labels, None, 'modeButns')
     self.modeButns.idName = "modeButns"
-    self.freedv_menu_items = {}
-    if conf.add_freedv_button:
-      self.freedv_menu = QuiskMenu("freedv_menu")
-      msg = conf.freedv_tx_msg
-      QS.freedv_set_options(mode=conf.freedv_modes[0][1], tx_msg=msg, DEBUG=0, squelch=1)
-      self.freedv_menu.AppendCheckItem("Monitor", self.OnFreedvMonitor)
-      self.freedv_menu.AppendSeparator()
-      for mode, index in conf.freedv_modes:
-        item = self.freedv_menu.AppendRadioItem(mode, self.OnFreedvMenu, mode == self.freedv_mode)
-        self.freedv_menu_items[index] = item
-        if mode == self.freedv_mode:	# Restore mode
-          QS.freedv_set_options(mode=index)
-        if mode in ("Mode 2020", "Mode 2400A", "Mode 2400B"):
-          item.Enable(False)
-      if conf.button_layout == 'Large screen':
-        b = QuiskCycleCheckbutton(frame, None, ('FDV-U', 'FDV-L'), is_radio=True)
-        b.idName = "FDV"
-        b.char_shortcut = 'F'
-        self.btnFreeDV = WrapMenu(b, self.freedv_menu)
-        self.modeButns.ReplaceButton(n_freedv, self.btnFreeDV)
-      else:
-        self.btnFreeDV = self.modeButns.AddMenu('FDV-U', self.freedv_menu)
-      try:
-        ok = QS.freedv_open()
-      except:
-        traceback.print_exc()
-        ok = 0
-      if not ok:
-        conf.add_freedv_button = False
-        if conf.button_layout == 'Large screen':
-          self.modeButns.GetButtons()[n_freedv].Enable(0)
-        else:
-          self.modeButns.Enable('FDV-U', False)
     if conf.add_imd_button:
       val = 1000
       QS.set_imd_level(val)
@@ -5395,16 +5354,6 @@ class App(wx.App):
     t = '%13.2f' % (QS.measure_frequency(-1) + vfo)
     t = t[0:4] + ' ' + t[4:7] + ' ' + t[7:] + ' Hz'
     self.smeter.SetLabel(t)
-  def NewDVmeter(self):
-    if conf.add_freedv_button:
-      snr = QS.freedv_get_snr()
-      txt = QS.freedv_get_rx_char()
-      self.graph.ScrollMsg(txt)
-      self.waterfall.ScrollMsg(txt)
-    else:
-      snr = 0.0
-    t = "  SNR %3.0f" % snr
-    self.smeter.SetLabel(t)
   def NewSmeter(self):
     self.smeter_db_count += 1		# count for average
     x = QS.get_smeter()
@@ -5570,66 +5519,6 @@ class App(wx.App):
     self.multi_rx_screen.waterfall.pane1.filter_bandwidth = bw
     self.multi_rx_screen.waterfall.pane1.filter_center = center
     self.multi_rx_screen.waterfall.pane2.filter_mode = mode
-    self.multi_rx_screen.waterfall.pane2.filter_bandwidth = bw
-    self.multi_rx_screen.waterfall.pane2.filter_center = center
-    if self.screen is self.filter_screen:
-      self.screen.NewFilter()
-  def OnFreedvMonitor(self, event):
-    for item in self.freedv_menu.GetMenuItems():
-      if item.GetKind() == wx.ITEM_CHECK:
-        if item.IsChecked():
-          QS.set_params(freedv_monitor=1)
-        else:
-          QS.set_params(freedv_monitor=0)
-        break
-  def OnFreedvMenu(self, event):
-    text = ''
-    for item in self.freedv_menu.GetMenuItems():
-      kind = item.GetKind()
-      if kind != wx.ITEM_RADIO:
-        continue
-      if item.IsChecked():
-        text = item.GetItemLabel()
-        break
-    for mode, index in conf.freedv_modes:
-      if mode == text:
-        break
-    else:
-      print ("Failure in OnFreedvMenu")
-      return
-    mode = QS.freedv_set_options(mode=index)
-    if mode == index:
-      self.freedv_mode = text
-    elif not self.remote_control_slave:		# change to new mode failed
-      self.freedv_menu_items[mode].Check(1)
-      pos = (self.width//2, self.height//2)
-      if index == 8:
-        dlg = wx.MessageDialog(self.main_frame, "Quisk does not install %s. Please install a system-wide codec2." % text, "FreeDV Modes", wx.OK, pos)
-      else:
-        dlg = wx.MessageDialog(self.main_frame, "No codec2 support for " + text, "FreeDV Modes", wx.OK, pos)
-      dlg.ShowModal()
-    else:
-      self.freedv_menu_items[mode].Check(1)
-      print ("FreeDV change mode failed.")
-    self.OnChangeFilter()
-  def OnChangeFilter(self):
-    # Used by OnFreedvMenu because the FreeDV mode may change the filter sample rate
-    bw = int(self.filterButns.GetLabel())
-    # We can not use QS.get_filter_srate() because the FreeDV mode is not changed yet.
-    if self.freedv_mode in ("Mode 2400A", "Mode 2400B"):
-      frate = 48000;
-    else:
-      frate = 8000;
-    bw = min(bw, frate // 2)
-    self.filter_bandwidth = bw
-    center = self.GetFilterCenter(self.mode, bw)
-    filtI, filtQ = self.MakeFilterCoef(frate, None, bw, center)
-    lower_edge = center - bw // 2
-    QS.set_filters(filtI, filtQ, bw, lower_edge, 0)
-    self.multi_rx_screen.graph.filter_bandwidth = bw
-    self.multi_rx_screen.graph.filter_center = center
-    self.multi_rx_screen.waterfall.pane1.filter_bandwidth = bw
-    self.multi_rx_screen.waterfall.pane1.filter_center = center
     self.multi_rx_screen.waterfall.pane2.filter_bandwidth = bw
     self.multi_rx_screen.waterfall.pane2.filter_center = center
     if self.screen is self.filter_screen:
@@ -6098,11 +5987,6 @@ class App(wx.App):
         QS.set_squelch(self.levelSquelch / 12.0 - 120.0)
       else:
         QS.set_squelch(-999.0)
-    elif self.mode[0:3]  == 'FDV':
-      if value:
-        QS.freedv_set_squelch_en(1)
-      else:
-        QS.freedv_set_squelch_en(0)
     else:
       self.levelSquelchSSB = btn.slider_value
       if value:
@@ -6896,10 +6780,7 @@ class App(wx.App):
             d = 1E-10
           self.smeter.SetLabel(" ADC %.0f%% %.0fdB" % (d * 100.0, 20 * math.log10(d)))
         elif self.smeter_usage == "smeter":		# update the S-meter
-          if self.mode in ('FDV-U', 'FDV-L'):
-            self.NewDVmeter()
-          else:
-            self.NewSmeter()
+          self.NewSmeter()
         elif self.smeter_usage == "freq":
           self.MeasureFrequency()	# display measured frequency
         else:

@@ -151,7 +151,6 @@ static int waterfall_scroll_mode = 1;		// draw the first lines multiple times
 static int quisk_use_sidetone;		// is there a sidetone volume control?
 static int hl2_txbuf_errors;		// errors in the Hermes-Lite2 Tx buffer
 static int hl2_txbuf_state;		// state machine for errors in the Hermes-Lite2 Tx buffer
-static int freedv_monitor;		// pass the Freedv audio to the speakers instead of to the demodulator
 static int softrock_correct_freq;	// gain and phase corrections for SoftRock
 static double softrock_correct_gain;
 static double softrock_correct_phase;
@@ -569,15 +568,10 @@ void QuiskWavClose(struct QuiskWav * hWav)
 }
 #endif
 
-// These are used for digital voice codecs
-ty_dvoice_codec_rx  pt_quisk_freedv_rx;
-ty_dvoice_codec_tx  pt_quisk_freedv_tx;
-
-void quisk_dvoice_freedv(ty_dvoice_codec_rx rx, ty_dvoice_codec_tx tx)
+void quisk_dvoice_freedv(void)		// Not used.
 {
-	pt_quisk_freedv_rx = rx;
-	pt_quisk_freedv_tx = tx;
 }
+
 #if 0
 static int fFracDecim(double * dSamples, int nSamples, double fdecim)
 {  // fractional decimation by fdecim > 1.0
@@ -1851,10 +1845,8 @@ static int quisk_process_decimate(complex double * cSamples, int nSamples, int b
 static int quisk_process_demodulate(complex double * cSamples, double * dsamples, int nSamples, int bank, int nFilter, rx_mode_type rx_mode)
 {	// Changes here will require changes to get_filter_rate();
 	int i;
-	bool isLSB;
 	complex double cx;
 	double d, di, dd;
-	static struct AgcState Agc1 = {0.3, 16000, 0}, Agc2 = {0.3, 16000, 0};
 //static int count=0;
 //static double phase=0;
 	static struct stStorage {
@@ -2090,6 +2082,7 @@ static int quisk_process_demodulate(complex double * cSamples, double * dsamples
 		MeasureSquelch[bank].squelch_active = MeasureSquelch[bank].squelch < squelch_level;
 		break;
 	case DGT_U:     // digital mode DGT-U at 48 ksps
+	case FDV_U:
 		if (filter_bandwidth[nFilter] < DGT_NARROW_FREQ) {	// filter at 6 ksps
 			quisk_filter_srate = quisk_decim_srate / 8;
 			nSamples = quisk_cDecim2HB45(cSamples, nSamples, &Storage[bank].HalfBand5);
@@ -2116,6 +2109,7 @@ static int quisk_process_demodulate(complex double * cSamples, double * dsamples
 		}
 		break;
 	case DGT_L:     // digital mode DGT-L
+	case FDV_L:
 		if (filter_bandwidth[nFilter] < DGT_NARROW_FREQ) {	// filter at 6 ksps
 			quisk_filter_srate = quisk_decim_srate / 8;
 			nSamples = quisk_cDecim2HB45(cSamples, nSamples, &Storage[bank].HalfBand5);
@@ -2152,102 +2146,6 @@ static int quisk_process_demodulate(complex double * cSamples, double * dsamples
 				measure_audio_sum = measure_audio_sum + cSamples[i] * conj(cSamples[i]);
 				measure_audio_count += 1;
 			}
-		}
-		break;
-	case FDV_U:	// digital voice
-	case FDV_L:	// Extra modes added by Dave Roberts, G8KBB, June 2020. Modified by N2ADR 2024.
-		quisk_check_freedv_mode();
-		// current coding assumes input rate n_modem_sample_rate is 8000 or 48000.
-		// decimate:
-		switch (n_modem_sample_rate) {
-		case 8000:
-			quisk_filter_srate = quisk_decim_srate / 6;
-			nSamples = quisk_cDecimate(cSamples, nSamples, &Storage[bank].filtDecim48to16, 3);
-			nSamples = quisk_cDecimate(cSamples, nSamples, &Storage[bank].filtDecim16to8, 2);
-			break;
-		case 48000:
-			quisk_filter_srate = quisk_decim_srate;
-			break;
-		default:
-			quisk_filter_srate = quisk_decim_srate / 6;
-			QuiskPrintf("Bad FreeDV modem rate in quisk_process_demodulate\n");
-			break;
-		}
-		// filter and demodulate to mono audio:
-		isLSB = (rx_mode == FDV_L);
-		complex double cBuf[nSamples];
-		for (i = 0; i < nSamples; i++) {
-			cx = cRxFilterOut(cSamples[i], bank, nFilter);
-			if (isLSB)
-				dd = creal(cx) + cimag(cx);
-			else
-				dd = creal(cx) - cimag(cx);
-			if(bank == 0) {
-				measure_audio_sum += dd * dd;
-				measure_audio_count += 1;
-			}
-			cBuf[i] = dd;
-		}
-		// Perhaps decimate by an additional fraction
-		if (quisk_decim_srate != 48000) {
-			dd = quisk_decim_srate / 48000.0;
-			nSamples = cFracDecim(cBuf, nSamples, dd);
-			quisk_decim_srate = 48000;
-		}
-		if (bank == 0)
-			process_agc(&Agc1, cBuf, nSamples, 0);
-		else
-			process_agc(&Agc2, cBuf, nSamples, 0);
-		// pass data decimated down to n_modem_sample_rate
-		// return data is at n_speech_sample_rate
-#if 0
-		static double dmax_in = 0;
-		for (i = 0; i < nSamples; i++) {
-			dd = fabs(creal(cBuf[i])) / CLIP16;
-			if (dd > dmax_in)
-				dmax_in = dd;
-		}
-		if (bank == 0 && measure_audio_count >= quisk_filter_srate * measure_audio_time) {
-			//printf("Max sample in %.0lf\n", dmax_in);
-			dmax_in = 0;
-		}
-#endif
-		if (nSamples > n_max_modem_samples) {
-			printf ("FreeDV: nSamples %d exceeds max_modem_samples %d\n", nSamples, n_max_modem_samples);
-			nSamples = n_max_modem_samples;
-		}
-		short sBuf[nSamples];
-		for (i = 0; i < nSamples; i++)
-			sBuf[i] = (short)(creal(cBuf[i]) / CLIP16);
-		if (freedv_monitor) {
-			for (i = 0; i < nSamples; i++)
-				dsamples[i] = (float)sBuf[i] * CLIP16;
-		}
-		else {
-			if (pt_quisk_freedv_rx)
-				nSamples = (* pt_quisk_freedv_rx)(sBuf, dsamples, nSamples, bank);
-		}
-#if 0
-		static double dmax_out = 0;
-		for (i = 0; i < nSamples; i++) {
-			dd = fabs(dsamples[i]) / CLIP16;
-			if (dd > dmax_out)
-				dmax_out = dd;
-		}
-		if (bank == 0 && measure_audio_count >= quisk_filter_srate * measure_audio_time) {
-			//printf("      Max sample out %.0lf\n", dmax_out);
-			dmax_out = 0;
-		}
-#endif
-		// current coding assumes output rate n_speech_sample_rate is 8000 or 16000
-		switch (n_speech_sample_rate) {
-		case 8000:
-			nSamples = quisk_dInterpolate(dsamples, nSamples, &Storage[bank].filtAudio24p3, 3);
-			nSamples = quisk_dInterp2HB45(dsamples, nSamples, &Storage[bank].HalfBand7);
-			break;
-		case 16000:
-			nSamples = quisk_dInterpolate(dsamples, nSamples, &Storage[bank].filtAudio24p3, 3);
-			break;
 		}
 		break;
 	}
@@ -2785,9 +2683,6 @@ start_agc:
 	if (rxMode == EXT || rxMode == DGT_IQ) {		// Ext and DGT-IQ stereo sound
 		process_agc(&Agc1, cSamples, nSamples, 1);
 	}
-	else if (rxMode == FDV_U || rxMode == FDV_L) {	// Agc already done
-		;
-	}
 	else if (split_rxtx || multirx_play_channel >= 0) {		// separate AGC for left and right channels
 		for (i = 0; i < nSamples; i++) {
 			orig_cSamples[i] = cimag(cSamples[i]);
@@ -2945,6 +2840,8 @@ static PyObject * get_filter_rate(PyObject * self, PyObject * args)
 		break;
 	case DGT_U:     // digital modes DGT-*
 	case DGT_L:
+	case FDV_U:	 // digital voice
+	case FDV_L:
 		if (bandwidth < DGT_NARROW_FREQ)
 			filter_srate = decim_srate / 8;
 		else
@@ -2952,10 +2849,6 @@ static PyObject * get_filter_rate(PyObject * self, PyObject * args)
 		break;
 	case DGT_IQ:	// digital mode at 48 ksps
 		filter_srate = decim_srate;
-		break;
-	case FDV_U:	 // digital voice
-	case FDV_L:
-		filter_srate = n_modem_sample_rate;
 		break;
 	}
 	//QuiskPrintf("Filter rate %d\n", filter_srate);
@@ -3196,14 +3089,13 @@ static PyObject * set_params(PyObject * self, PyObject * args, PyObject * keywds
 {  /* Call with keyword arguments ONLY; change local parameters */
 	static char * kwlist[] = {"quisk_is_vna", "rx_bytes", "rx_endian", "read_error", "clip", 
 	"bscope_bytes", "bscope_endian", "bscope_size", "bandscopeScale", "hermes_pause", 
-	"freedv_monitor", NULL} ;
+	NULL} ;
 	int i, nbytes, read_error, clip, bscope_size, hermes_pause;
 
 	nbytes = read_error = clip = bscope_size = hermes_pause = -1;
 	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiiiiiiidii", kwlist,
 	&quisk_is_vna, &nbytes, &py_sample_rx_endian, &read_error, &clip,
-	&py_bscope_bytes, &py_bscope_endian, &bscope_size, &bandscopeScale, &hermes_pause,
-	&freedv_monitor))
+	&py_bscope_bytes, &py_bscope_endian, &bscope_size, &bandscopeScale, &hermes_pause))
 		return NULL;
 	if (nbytes != -1) {
 		py_sample_rx_bytes = nbytes;
@@ -6269,13 +6161,6 @@ static PyMethodDef QuiskMethods[] = {
 	{"set_cwkey", set_hardware_cwkey, METH_VARARGS, "Change the CW key up/down state."},
 	{"set_remote_cwkey", set_remote_cwkey, METH_VARARGS, "Change the remote control CW key up/down state."},
 	{"set_PTT", set_PTT, METH_VARARGS, "Record the PTT button state."},
-	{"freedv_open", quisk_freedv_open, METH_VARARGS, "Open FreeDV."},
-	{"freedv_close", quisk_freedv_close, METH_VARARGS, "Close FreeDV."},
-	{"freedv_get_snr", quisk_freedv_get_snr, METH_VARARGS, "Return the signal to noise ratio in dB."},
-	{"freedv_get_version", quisk_freedv_get_version, METH_VARARGS, "Return the codec2 API version."},
-	{"freedv_get_rx_char", quisk_freedv_get_rx_char, METH_VARARGS, "Get text characters received from freedv."},
-	{"freedv_set_options", (PyCFunction)quisk_freedv_set_options, METH_VARARGS|METH_KEYWORDS, "Set the freedv parameters."},
-	{"freedv_set_squelch_en", quisk_freedv_set_squelch_en, METH_VARARGS, "Enable or disable FreeDV squelch."},
 	{"wdsp_set_parameter", (PyCFunction)quisk_wdsp_set_parameter, METH_VARARGS|METH_KEYWORDS, "Set parameters for the WDSP SDR library."},
 	{"tmp_record_save", tmp_record_save, METH_VARARGS, "Save the temporary recording in a WAV file."},
 	{"watfall_RgbData", watfall_RgbData, METH_VARARGS, "Return a cookie for the Waterfall pixel data."},

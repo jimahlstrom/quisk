@@ -64,11 +64,19 @@ volatile int streams_to_start;
 // remember all open devices for easy cleanup on exit
 static pa_stream *OpenPulseDevices[PA_LIST_SIZE * 2] = {NULL};
 
-static int have_QuiskDigitalInput;	// Do we need to create this null sink?
-static int have_QuiskDigitalOutput;	// Do we need to create this null sink?
-
 static int underrunPlayback;
 static int tlength_bytes;
+
+// list of additional sink devices to add
+struct _NewSinks {
+	char * name;	// name of the new sink
+	int create;	// create the sink if it doesn't exist
+};
+#define NUM_NEW_SINKS	2
+static struct _NewSinks sink_list[NUM_NEW_SINKS] = {
+	{"QuiskDigitalInput", 1},
+	{"QuiskDigitalOutput", 1}
+};
 
 /* This callback happens any time a stream changes state. Here, it's primary used to 
  * tell the quisk thread when streams are ready. 
@@ -1043,19 +1051,23 @@ static void source_sink(const char * name, const char * descr, pa_proplist * pro
 
 // pa_mainloop will call this function when it's ready to tell us about a sink.
 static void pa_sinklist_cb(pa_context *c, const pa_sink_info *l, int eol, void *userdata) {
-    if (eol > 0)	// If eol is set to a positive number, you're at the end of the list
+	int i;
+
+	if (eol > 0)	// If eol is set to a positive number, you're at the end of the list
 		return;
-    source_sink(l->name, l->description, l->proplist, (PyObject *)userdata);
-    if ( ! strcmp(l->name, "QuiskDigitalInput"))
-        have_QuiskDigitalInput = 1;
-    if ( ! strcmp(l->name, "QuiskDigitalOutput"))
-        have_QuiskDigitalOutput = 1;
+	source_sink(l->name, l->description, l->proplist, (PyObject *)userdata);
+	for (i = 0; i < NUM_NEW_SINKS; i++) {
+		if ( ! strcmp(l->name, sink_list[i].name)) {
+			sink_list[i].create = 0;
+		}
+	}
 }
 
-static void pa_sourcelist_cb(pa_context *c, const pa_source_info *l, int eol, void *userdata) {
-    if (eol > 0)
+static void pa_sourcelist_cb(pa_context *c, const pa_source_info *l, int eol, void *userdata)
+{
+	if (eol > 0)
 		return;
-    source_sink(l->name, l->description, l->proplist, (PyObject *)userdata);
+	source_sink(l->name, l->description, l->proplist, (PyObject *)userdata);
 }
 
 static void index_callback(pa_context *c, uint32_t idx, void *userdata) {
@@ -1070,6 +1082,9 @@ PyObject * quisk_pulseaudio_sound_devices(PyObject * self, PyObject * args)
 	pa_operation *pa_op=NULL;
 	pa_context *pa_names_ctx;
 	int state = 0;
+	int sink_index = 0;
+	char * sink_name;
+	char buf256[256];
 
 	if (!PyArg_ParseTuple (args, ""))
 		return NULL;
@@ -1113,59 +1128,41 @@ PyObject * quisk_pulseaudio_sound_devices(PyObject * self, PyObject * args)
 			pa_mainloop_iterate(pa_names_ml, 1, NULL);
 			break;
 		case 2:
-			// Now we wait for our operation to complete.  When it's
-			// complete our pa_output_devicelist is filled out, and we move
-			// along to the next state
 			if (pa_operation_get_state(pa_op) == PA_OPERATION_DONE) {
 				pa_operation_unref(pa_op);
-				// Now we perform another operation to get the source
-				// (input device) list just like before.
-				pa_op = pa_context_get_source_info_list(pa_names_ctx, pa_sourcelist_cb, pycapt);
-				// Update the state so we know what to do next
 				state++;
 			}
-			pa_mainloop_iterate(pa_names_ml, 1, NULL);
+			else
+				pa_mainloop_iterate(pa_names_ml, 1, NULL);
 			break;
+		// The following loads null sinks for digital input and output if they are not present.
 		case 3:
+			if (sink_index >= NUM_NEW_SINKS) {
+				state = 5;
+				continue;
+			}
+			if (sink_list[sink_index].create) {
+				sink_name = sink_list[sink_index].name;
+				snprintf(buf256, 256, "sink_name=%s sink_properties=device.description=%s", sink_name, sink_name);
+				pa_op = pa_context_load_module(pa_names_ctx, "module-null-sink", buf256, index_callback, NULL);
+				state++;
+			}
+			sink_index++;
+			break;
+		case 4:
 			if (pa_operation_get_state(pa_op) == PA_OPERATION_DONE) {
 				pa_operation_unref(pa_op);
-				state = 4;
+				state = 3;
 			}
 			else
 				pa_mainloop_iterate(pa_names_ml, 1, NULL);
-			break;
-		// The following loads modules for digital input and output if they are not present.
-		case 4:
-			if ( ! have_QuiskDigitalInput) {
-				pa_op = pa_context_load_module(pa_names_ctx, "module-null-sink",
-					"sink_name=QuiskDigitalInput sink_properties=device.description=QuiskDigitalInput",
-					index_callback, NULL);
-				state = 5;
-				pa_mainloop_iterate(pa_names_ml, 1, NULL);
-			}
-			else
-				state = 6;
 			break;
 		case 5:
-			if (pa_operation_get_state(pa_op) == PA_OPERATION_DONE) {
-				pa_operation_unref(pa_op);
-				state = 6;
-			}
-			else
-				pa_mainloop_iterate(pa_names_ml, 1, NULL);
+			pa_op = pa_context_get_source_info_list(pa_names_ctx, pa_sourcelist_cb, pycapt);
+			state++;
+			pa_mainloop_iterate(pa_names_ml, 1, NULL);
 			break;
 		case 6:
-			if ( ! have_QuiskDigitalOutput) {
-				pa_op = pa_context_load_module(pa_names_ctx, "module-null-sink",
-					"sink_name=QuiskDigitalOutput sink_properties=device.description=QuiskDigitalOutput",
-					index_callback, NULL);
-				state = 7;
-				pa_mainloop_iterate(pa_names_ml, 1, NULL);
-			}
-			else
-				state = 9;
-			break;
-		case 7:
 			if (pa_operation_get_state(pa_op) == PA_OPERATION_DONE) {
 				pa_operation_unref(pa_op);
 				state = 9;

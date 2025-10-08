@@ -1,3 +1,13 @@
+Quisk Version 4.2.45  October 2025
+==================================
+The new FreeDV including RADE mode is now a built-in mode of Quisk. Just press "FDV" to talk FreeDV.
+In brief, install FreeDV-GUI from the web site. Then configure the usual Quisk digital input and
+output that you use for digital modes. In FreeDV-GUI use the digital input and output. For the
+speakers and microphone use the same ones as Quisk. Don't forget to configure your call sign in
+FreeDV so it works with FreeDV Reporter. For detailed instructions see http://james.ahlstrom.name/rade.html.
+
+The Quisk digital output device is now always active; a DGT mode is not required.
+
 Quisk Version 4.2.44  September 2025
 ====================================
 Quisk now has Pure Signal for the Hermes Lite2. This is baseband predistortion to reduce IMD products.

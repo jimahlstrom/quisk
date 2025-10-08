@@ -1797,23 +1797,6 @@ add_extern_demod = ""
 add_fdx_button = 0
 #add_fdx_button = 1
 
-## add_freedv_button		Add FreeDv button, integer choice
-# These buttons add up to two additional mode buttons after CW, USB, etc.
-# Set this to add the FDV mode button for digital voice:
-add_freedv_button = 1
-#add_freedv_button = 0
-
-## freedv_tx_msg			FreeDv Tx message, text
-# For freedv, this is the text message to send.
-freedv_tx_msg = ''
-#freedv_tx_msg = 'N2XXX Jim, New Jersey, USA \n'
-
-
-# This is the list of FreeDV modes and their index number.  The starting mode is the first listed.
-freedv_modes = (('Mode 1600', 0), 
-		('Mode 2400A', 3), ('Mode 2400B', 4), ('Mode 800XA', 5),
-		('Mode 700C', 6), ('Mode 700D', 7), ('Mode 700E', 13), ('Mode 2020', 8))
-
 # These are the filter bandwidths for each mode.  Quisk has built-in optimized filters
 # for these values, but you can change them if you want.
 FilterBwCW	= (200, 400, 600, 1000, 1500, 3000)

@@ -1000,21 +1000,25 @@ int quisk_read_sound(void)	// Called from sound thread
 	if (remote_control_slave)
 		send_remote_radio_sound_socket(cSamples, nSamples);
 
-	is_DGT = rxMode == DGT_U || rxMode == DGT_L || rxMode == DGT_IQ || rxMode == DGT_FM;
+	is_DGT = (rxMode == DGT_U || rxMode == DGT_L || rxMode == DGT_IQ || rxMode == DGT_FM || rxMode == FDV_U || rxMode == FDV_L);
 	if (quisk_record_state == TMP_PLAY_SPKR_MIC)
 		quisk_tmp_playback(cSamples, nSamples, 1.0);		// replace radio sound
 	else if (quisk_record_state == FILE_PLAY_SPKR_MIC)
 		quisk_file_playback(cSamples, nSamples, file_play_level);		// replace radio sound
 	// Play the demodulated audio
 #if DEBUG_MIC != 2
-	if ( ! quisk_play_sidetone(&quisk_Playback))	// play sidetone
-		play_sound_interface(&quisk_Playback, nSamples, cSamples, 1, quisk_audioVolume);	// else play radio sound
+	if ( ! quisk_play_sidetone(&quisk_Playback)) {	// play sidetone
+		if (rxMode == FDV_U || rxMode == FDV_L)
+			play_sound_interface(&quisk_Playback, nSamples, cSamples, 1, 0);	// play silence
+		else
+			play_sound_interface(&quisk_Playback, nSamples, cSamples, 1, quisk_audioVolume);	// play radio sound
+	}
 #endif
 	if (radio_sound_socket != INVALID_SOCKET)
 		send_radio_sound_socket(cSamples, nSamples, quisk_audioVolume);
    
 	// Play digital if required
-	if (is_DGT)
+	//if (is_DGT)
 		play_sound_interface(&DigitalOutput, nSamples, cSamples, 1, digital_output_level);
    
 	// Perhaps record the speaker audio to a file

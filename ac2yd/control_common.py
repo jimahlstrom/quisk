@@ -395,7 +395,7 @@ class ControlCommon(BaseHardware):	# This is the Hardware class for the control 
     for idName in ("Mute", "NR2", "AGC", "Sqlch", "NB 1", "Notch", "Test 1", "Spot", "FDX", "PTT", "VOX"):
       self.RemoteCtlSend("%s;%d\n" % (idName, app.idName2Button[idName].GetIndex()))
     # Menus
-    for menu in (app.NB_menu, app.split_menu, app.freedv_menu, app.smeter_menu):
+    for menu in (app.NB_menu, app.split_menu, app.smeter_menu):
       if menu:
         for nid in menu.id2data:
           menu_item = menu.FindItemById(nid)
