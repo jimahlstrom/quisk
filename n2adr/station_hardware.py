@@ -410,7 +410,7 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
     self.set_C = 0
     self.set_HighZ = 0
     self.antnum = 0				# Antenna number 0 or 1
-    self.dipole2 = AntennaControl(app, conf)	# Control the KI8BV dipole
+    self.dipole2 = None #AntennaControl(app, conf)	# Control the KI8BV dipole
     if False and conf.use_rx_udp == 10:		# Hermes UDP protocol for Hermes-Lite2
       path = 'TunerLCZ_HL2.txt'
     else:
@@ -484,10 +484,10 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
     if tx_freq < 17000000:
       if DEBUG and self.antnum == 1: print ("antnum 0")
       self.antnum = 0
-    else:
+    elif self.dipole2:
       if DEBUG and self.antnum == 0: print ("antnum 1")
       self.antnum = 1
-    if self.antnum == 1:
+    if self.antnum == 1 and self.dipole2:
       self.dipole2.SetTxFreq(tx_freq)
     if not self.socket:
       return
@@ -521,7 +521,8 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
         self.timer = 0
     else:
       self.timer = 0
-    self.dipole2.HeartBeat()
+    if self.dipole2:
+      self.dipole2.HeartBeat()
   def Send(self):
     try:
       self.socket.send(self.want_data)
@@ -657,9 +658,9 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     fff, anttuner.set_L, anttuner.set_C, anttuner.set_HighZ = tup
     if tx_freq < 17000000:
       anttuner.antnum = 0
-    else:
+    elif anttuner.dipole2:
       anttuner.antnum = 1
-    if anttuner.antnum == 1:
+    if anttuner.antnum == 1 and anttuner.dipole2:
       anttuner.dipole2.SetTxFreq(tx_freq)
     anttuner.WantData()
   def FindIndexTup(self, tx_freq):

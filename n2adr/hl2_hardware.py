@@ -1,8 +1,5 @@
 # This is the hardware control file for my shack.
-# It is for the Hermes-Lite2 5 watt output which uses only the antenna tuner.
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
+# It is for the Hermes-Lite2 RF1 output and Alt Rx input.
 
 from hermes.quisk_hardware import Hardware as BaseHw
 from n2adr import station_hardware
@@ -17,7 +14,7 @@ class Hardware(BaseHw):
     self.controlbox = station_hardware.ControlBox(app, conf)	# Control my Station Control Box
     self.v2filter = station_hardware.FilterBoxV2(app, conf)	# Control V2 filter box
   def open(self):
-    if False:
+    if False:	# Start the station control GUI
       from n2adr.station_hardware import StationControlGUI
       self.GUI = StationControlGUI(self.application.main_frame, self, self.application, self.conf)
       self.GUI.Show()
@@ -42,8 +39,6 @@ class Hardware(BaseHw):
     # band is a string: "60", "40", "WWV", etc.
     ret = BaseHw.ChangeBand(self, band)
     self.anttuner.ChangeBand(band)
-    #self.lpfilter.ChangeBand(band)
-    #self.hpfilter.ChangeBand(band)
     self.v2filter.ChangeBand(band)
     self.CorrectSmeter()
     return ret

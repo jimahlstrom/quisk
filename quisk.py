@@ -995,17 +995,12 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     else:
       self.Send('0\n')
   def GetFreq(self):	# The Rx frequency
-    rx = self.app.multi_rx_screen.receiver_list
-    if rx:
-      rx = rx[0]
-      self.Reply('Frequency', rx.txFreq + rx.VFO, 0)
-      if HAMLIB_DEBUG:
-        print ("GetFreq rx", rx.txFreq, rx.VFO)
-    else:
-      self.Reply('Frequency', self.app.rxFreq + self.app.VFO, 0)
-      if HAMLIB_DEBUG:
-        print ("GetFreq app", self.app.rxFreq, self.app.txFreq, self.app.VFO)
+    # This is always the main Rx frequency without reference to added receivers.
+    self.Reply('Frequency', self.app.rxFreq + self.app.VFO, 0)
+    if HAMLIB_DEBUG:
+      print ("GetFreq app", self.app.rxFreq, self.app.txFreq, self.app.VFO)
   def SetFreq(self):	# The Rx frequency
+    # This is always the main Rx frequency without reference to added receivers.
     freq = self.GetParamNumber()
     try:
       freq = float(freq)
@@ -1014,12 +1009,7 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
       self.ErrParam()
     else:
       freq = int(freq + 0.5)
-      # For multiple receivers this controls the first added receiver frequency; else it controls split Rx/Tx frequency.
-      rx = self.app.multi_rx_screen.receiver_list
-      if rx:
-        rx[0].ChangeRxTxFrequency(freq)
-      else:
-        self.app.ChangeRxTxFrequency(freq, None)
+      self.app.ChangeRxTxFrequency(freq, None)
   def GetSplitFreq(self):	# The Tx Frequency
     self.Reply('TX Frequency', self.app.txFreq + self.app.VFO, 0)
   def SetSplitFreq(self):	# The Tx Frequency

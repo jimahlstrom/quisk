@@ -1,3 +1,9 @@
+Quisk Version 4.2.46  October 2025
+==================================
+I fixed a bug in Hamlib rig 2 which happens with the new Pure Signal code. The Hamlib "f" command
+now always returns the main receiver frequency, not one of the added receiver frequencies. This is
+consistent with the Flex ZZ commands.
+
 Quisk Version 4.2.45  October 2025
 ==================================
 The new FreeDV including RADE mode is now a built-in mode of Quisk. Just press "FDV" to talk FreeDV.
