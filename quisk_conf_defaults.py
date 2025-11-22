@@ -48,7 +48,7 @@ quisk_widgets = None
 
 
 
-################ Receivers SoftRock USB, Devices controlled by USB that capture samples from a sound card, and (for Tx) play samples to a sound card
+################ Receivers SoftRock USB, Sound card radios controlled by USB.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'softrock/hardware_usb.py'
@@ -133,7 +133,7 @@ digital_tx_level = 100
 
 
 
-################ Receivers SoftRock Fixed, Fixed frequency devices that capture samples from a sound card, and (for Tx) play samples to a sound card
+################ Receivers SoftRock Fixed, Fixed frequency sound card radios.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'quisk_hardware_fixed.py'
@@ -174,7 +174,7 @@ digital_tx_level = 100
 
 
 
-################ Receivers HiQSDR, The original N2ADR hardware and the improved HiQSDR using UDP
+################ Receivers HiQSDR, The original N2ADR and HiQSDR radios.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'hiqsdr/quisk_hardware.py'
@@ -258,7 +258,7 @@ sndp_active = True
 
 
 
-################ Receivers Hermes, The Hermes-Lite Project and possibly other hardware with the Hermes FPGA code.
+################ Receivers Hermes, The Hermes-Lite project by Steve Haynal.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'hermes/quisk_hardware.py'
@@ -275,7 +275,7 @@ sndp_active = True
 # You can set these options:
 
 ## use_rx_udp			Hardware type, integer choice
-# This is the type of UDP hardware.  Use 10 for the Hermes protocol.
+# This is the type of UDP hardware.  Use 10 for the Hermes Lite2 protocol.
 #use_rx_udp = 10
 
 ## udp_rx_ip		Hermes known IP, text
@@ -373,6 +373,7 @@ hermes_disable_sync = False
 # be sure to write it down. To use this address you must set "Eeprom IP Usage".
 # And you may want to set "Hermes known IP" too. Make sure the address does not conflict
 # with your DHCP server.
+# Power cycle the HL2 after changing this item.
 Hware_Hl2_EepromIP = '192.168.1.6'
 #Hware_Hl2_EepromIP = '192.168.1.241'
 
@@ -380,6 +381,7 @@ Hware_Hl2_EepromIP = '192.168.1.6'
 # This is the way the EEPROM IP address is used at power on.
 # "Ignore" means it is not used at all. "Set address" means DHCP is not used and the EEPROM IP address is used.
 # "Use DHCP first" means the EEPROM IP address is only used if DHCP fails.
+# Power cycle the HL2 after changing this item.
 Hware_Hl2_EepromIPUse = 'Ignore'
 #Hware_Hl2_EepromIPUse = 'Use DHCP first'
 #Hware_Hl2_EepromIPUse = 'Set address'
@@ -390,6 +392,7 @@ Hware_Hl2_EepromIPUse = 'Ignore'
 # at power on instead of the factory supplied MAC address 0:1c:c0:a2:13:dd. It is only used at power on,
 # and it is only used if it is marked valid by setting "Eeprom MAC usage" to "Set address".
 # If you have two HL2's, you must have a unique MAC address for each.
+# Power cycle the HL2 after changing this item.
 Hware_Hl2_EepromMAC = '0xA1 0x6B'
 #Hware_Hl2_EepromMAC = '0x4C 0x33'
 
@@ -398,6 +401,7 @@ Hware_Hl2_EepromMAC = '0xA1 0x6B'
 # the HL2 will use the last two MAC bytes from "Eeprom MAC address"; otherwise the default MAC is used.
 # If you change this item, the bit is written to the HL2.
 # The HL2 only uses these bits at power on.
+# Power cycle the HL2 after changing this item.
 Hware_Hl2_EepromMACUse = 'Ignore'
 #Hware_Hl2_EepromMACUse = 'Set address'
 
@@ -474,13 +478,6 @@ hermes_iob_rxin = 'J10 available'
 #hermes_iob_rxin = 'HL2 Rx to J9'
 #hermes_iob_rxin = 'Use J9 and J10'
 
-## hermes_lite2_enable			Hermes Lite2 protocol, boolean
-# This turns on some of the protocol extensions for the Hermes Lite2 that are not part
-# of the official Hermes Protocol 1. Currently this only enables Tx Inhibit (CN8).
-# Changes are immediate (no need to restart).
-hermes_lite2_enable = True
-#hermes_lite2_enable = False
-
 
 # These are known power meter calibration tables. This table is not present in the JSON settings file.
 power_meter_std_calibrations = {}
@@ -508,17 +505,17 @@ Hermes_BandDictEnTx = False
 #Hermes_BandDictEnTx = True
 
 
-################ Receivers Red Pitaya, The Red Pitaya Project by Pavel Demin.  This uses the Hermes FPGA code.
+################ Receivers Red Pitaya, The Red Pitaya project by Pavel Demin.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'hermes/quisk_hardware.py'
 
 ## widgets_file_name			Widget file path, rfile
 # This optional file adds additional controls for the radio.
-#widgets_file_name = ''
+#widgets_file_name = 'hermes/hpsdr_widgets.py'
 
 ## use_rx_udp			Hardware type, integer choice
-# This is the type of UDP hardware.  Use 10 for the Hermes protocol.
+# This is the type of UDP hardware.  Use 10 for the Red Pitaya using the OpenHPSDR protocol.
 #use_rx_udp = 10
 
 ## rx_udp_ip				IP change, text
@@ -586,7 +583,87 @@ Hermes_BandDictEnTx = False
 #Hermes_BandDictEnTx = True
 
 
-################ Receivers SoapySDR, The SoapySDR interface to multiple hardware SDRs.
+################ Receivers OpenHPSDR, Radios using the HPSDR Protocol 1.
+## hardware_file_name		Hardware file path, rfile
+# This is the file that contains the control logic for each radio.
+#hardware_file_name = 'hermes/quisk_hardware.py'
+
+## widgets_file_name			Widget file path, rfile
+# This optional file adds additional controls for the radio.
+#widgets_file_name = 'hermes/hpsdr_widgets.py'
+
+## use_rx_udp			Hardware type, integer choice
+# This is the type of UDP hardware.  Use 10 for hardware using the OpenHPSDR protocol 1.
+#use_rx_udp = 10
+
+## rx_udp_ip				IP change, text
+# This item should be left blank. It is used to change the IP address of the hardware to a different
+# IP once the hardware is found. Not all Hermes firmware supports changing the IP address.
+#rx_udp_ip = ""
+
+## rx_udp_port				Hardware UDP port, integer
+# This is the UDP port number of your hardware.
+#rx_udp_port = 1024
+
+## rx_udp_ip_netmask		Network netmask, text
+# This is the netmask for the network.
+#rx_udp_ip_netmask = '255.255.255.0'
+
+## tx_ip					Transmit IP, text
+# Leave this blank to use the same IP address as the receive hardware.  Otherwise, enter "disable"
+# to disable sending transmit I/Q samples, or enter the actual IP address.  You must enter "disable"
+# if you have multiple hardwares on the network, and only one should transmit. This item is normally blank.
+tx_ip = ""
+#tx_ip = "disable"
+
+## tx_audio_port			Tx audio UDP port, integer
+# This is the UDP port for transmit audio I/Q samples.  Enter zero to calculate this from the
+# base hardware port.  Otherwise enter the special custom port.
+tx_audio_port = 0
+
+## rx_udp_clock				Clock frequency Hertz, integer
+# This is the clock frequency of the hardware in Hertz.
+#rx_udp_clock = 122880000
+#rx_udp_clock = 76800000
+#rx_udp_clock = 125000000
+
+## tx_level		Tx Level, dict
+# This sets the transmit level 0 to 255 for each band.
+# The config screen has a slider 0 to 100% so you can reduce the transmit power.
+# The hardware only supports a limited adjustment range, so zero is still a small amount of power.
+tx_level = {}
+
+## digital_tx_level			Digital Tx power %, integer
+# Digital modes reduce power by the percentage on the config screen.
+# This is the maximum value of the slider.
+#digital_tx_level = 100
+
+## hermes_code_version		Hermes code version, integer
+# There can be multiple Hermes devices on a network, but Quisk can only use one of these.  If you have multiple
+# hermes devices, you can use this to specify a unique device.  Or use -1 to accept any board.
+hermes_code_version = -1
+
+## hermes_board_id			Hermes board ID, integer
+# There can be multiple Hermes devices on a network, but Quisk can only use one of these.  If you have multiple
+# hermes devices, you can use this to specify a unique device.  Or use -1 to accept any board.
+hermes_board_id = -1
+
+## Hermes_BandDict		Hermes Bus, dict
+# The Hermes_BandDict sets the 7 bits on the J16 connector.
+Hermes_BandDict = {
+	'160':0b0000001, '80':0b0000010, '60':0b0000100, '40':0b0001000, '30':0b0010000, '20':0b0100000, '15':0b1000000}
+
+## Hermes_BandDictTx		Tx IO Bus, dict
+# The Hermes_BandDictTx sets the 7 bits on the J16 connector for Tx if enabled.
+Hermes_BandDictTx = {'160':0, '80':0, '60':0, '40':0, '30':0, '20':0, '17':0, '15':0, '12':0, '10':0}
+
+## Hermes_BandDictEnTx		Enable Tx Filt, boolean
+# Enable the separate Rx and Tx settings for the J16 connector.
+Hermes_BandDictEnTx = False
+#Hermes_BandDictEnTx = True
+
+
+################ Receivers SoapySDR, The SoapySDR interface to multiple SDRs.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'soapypkg/quisk_hardware.py'
@@ -602,7 +679,7 @@ Hermes_BandDictEnTx = False
 # Further items are present in the radio dictionary with names soapy_*
 
 
-################ Receivers SdrIQ, The SDR-IQ receiver by RfSpace
+################ Receivers SdrIQ, The SDR-IQ receiver by RfSpace.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 hardware_file_name = 'quisk_hardware_sdriq.py'
@@ -633,7 +710,7 @@ sdriq_decimation = 1250
 
 
 
-################ Receivers Odyssey,   The Odyssey project using a UDP protocol similar to the HiQSDR
+################ Receivers Odyssey,   The Odyssey project.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'hiqsdr/quisk_hardware.py'
@@ -744,7 +821,7 @@ sndp_active = True
 #radio_sound_mic_boost = True
 
 
-################ Receivers Odyssey2,   The Odyssey-2 project using the HPSDR Hermes protocol
+################ Receivers Odyssey2,   The Odyssey-2 project.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'hermes/quisk_hardware.py'
@@ -759,7 +836,7 @@ sndp_active = True
 # You can set these options:
 
 ## use_rx_udp			Hardware type, integer choice
-# This is the type of UDP hardware.  Use 10 for the Hermes protocol.
+# This is the type of UDP hardware.  Use 10 for the Odyssey-2.
 #use_rx_udp = 10
 
 ## rx_udp_ip				IP change, text
@@ -828,7 +905,7 @@ Hermes_BandDictEnTx = False
 #Hermes_BandDictEnTx = True
 
 
-################ Receivers Afedri,   The Afedri SDR receiver with the Ethernet interface.
+################ Receivers Afedri,   The Afedri SDR receiver with Ethernet.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'afedrinet/quisk_hardware.py'
@@ -860,7 +937,7 @@ Hermes_BandDictEnTx = False
 #default_rf_gain = 11
 
 
-################ Receivers Control Head, Use Quisk to control a remote radio. No real hardware is used here.
+################ Receivers Control Head, Use Quisk to control a remote Quisk radio.
 ## hardware_file_name		Hardware file path, rfile
 # Quisk can be used as a control head to control a real radio located remotely.
 # This file contains the control logic for remote radios of type Hermes, SoftRock or HiQSDR.

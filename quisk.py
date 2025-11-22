@@ -3718,7 +3718,7 @@ class App(wx.App):
   'wfallScaleZ', 'wfallGrScaleZ', 'graphScaleZ', 'split_rxtx_play', 'modeFilter',
   'file_name_rec_audio', 'file_name_rec_samples', 'file_name_rec_mic', 'file_name_rec_tmp',
   'file_name_play_audio', 'file_name_play_samples', 'file_name_play_cq',
-  'file_play_source', 'hermes_LNA_dB']
+  'file_play_source', 'hermes_LNA_dB', 'hermes_atten_dB']
   def __init__(self):
     global application
     QS.AppStatus(1)
@@ -3939,6 +3939,7 @@ class App(wx.App):
     self.serial_ptt_active = False
     self.vox_ptt_active = False
     self.hermes_LNA_dB = 20
+    self.hermes_atten_dB = 0
     if hasattr(Hardware, "OnChangeRxTx"):
       self.want_RxTx = True
     else:
@@ -6798,7 +6799,7 @@ class App(wx.App):
     if self.timer - self.heart_time0 > 0.10:	# call hardware to perform background tasks:
       self.heart_time0 = self.timer
       Hardware.HeartBeat()
-      if conf.hermes_lite2_enable:
+      if conf.use_rx_udp == 10 and Hardware.hermes_board_id == 6:
         self.tx_inhibit = QS.get_params('quisk_tx_inhibit')
       else:
         self.tx_inhibit = 0

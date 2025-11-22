@@ -48,6 +48,8 @@ class IOBoard:
   def HeartBeat(self):	# Called at 10 Hz for housekeeping tasks
     if not QS.get_params('rx_udp_started'):
       return
+    if self.hardware.hermes_board_id != 6:
+      return
     if self.have_IO_Board is None:
       resp = self.hardware.ReadI2C(0x7d, 0x41, 0)	# Check for the N2ADR HL2 IO Board
       if resp and resp[1] == 0xF1:
@@ -166,7 +168,10 @@ class Hardware(BaseHardware):
     self.vna_count = 0
     self.vna_started = False
     self.repeater_freq = None		# original repeater output frequency
-    self.antenna_labels = ('Ant 0', 'Ant 1')	# labels for the antenna button
+    if conf.hardware_file_type == "Red Pitaya":
+      self.antenna_labels = ('Ant 0', 'Ant 1')	# labels for the antenna button
+    else:
+      self.antenna_labels = ('Ant 0', 'Ant 1', 'Ant 2', 'Ant 3')
     self.antenna_index = 0			# index of antenna in use
     self.delay_config = True			# Delay sending message to HL2 until after sound starts
     self.TFRC_counter = 0		# Call for power etc. at intervals
@@ -529,7 +534,9 @@ class Hardware(BaseHardware):
   def ChangeBandFilters(self):
     if not hasattr(self.application, "multi_rx_screen"):
       return	# Needed for the VNA program
-    self.SetControlBit(0x00, 13, self.antenna_index)
+    self.SetControlBit(0x00, 13, self.antenna_index & 0x01)
+    self.SetControlBit(0x00, 14, self.antenna_index & 0x02)
+    self.SetControlBit(0x00, 15, self.antenna_index > 0)
     highest = self.band
     freq = self.conf.BandEdge.get(highest, (0, 0))[0]
     for pane in self.application.multi_rx_screen.receiver_list:
@@ -606,12 +613,7 @@ class Hardware(BaseHardware):
     return (48000, 384000)
   ## Hardware AGC is no longer supported in HL2 identifying as version >=40   
   def ChangeAGC(self, value):
-    if value:
-      self.pc2hermes[2] |= 0x10		# C0 index == 0, C3[4]: AGC enable
-    else:
-      self.pc2hermes[2] &= ~0x10
-    QS.pc_to_hermes(self.pc2hermes)
-    if DEBUG: print ("Change AGC to", value)
+    pass
   ## Simpler LNA setting for HL2 identifying as version >=40, see HL2 wiki for details
   def ChangeLNA(self, value):		# LNA for Rx
     # value is -12 to +48
@@ -624,7 +626,7 @@ class Hardware(BaseHardware):
         value = 51 - value
     else:
       value = ((value+12) & 0x3f) | 0x40
-    self.pc2hermes[4 * 10 + 3] = value			# C0 index == 0x1010, C4[4:0] LNA 0-32 dB gain
+    self.pc2hermes[4 * 10 + 3] = value			# C0 index == 0b1010, C4[4:0] LNA 0-32 dB gain
     QS.pc_to_hermes(self.pc2hermes)
     if DEBUG: print ("Change LNA to", value)
   def ChangeTxLNA(self, value):		# LNA for Tx
@@ -634,9 +636,17 @@ class Hardware(BaseHardware):
     elif value > 48:
       value = 48
     value = ((value+12) & 0x3f) | 0x40 | 0x80
-    self.SetControlByte(0x0e, 3, value, False)		# C0 index == 0x0e, C3
+    self.SetControlByte(0x0e, 3, value, False)		# C0 index == 0b1110 == 0x0e, C3
     QS.pc_to_hermes(self.pc2hermes)
     if DEBUG: print ("Change Tx LNA to", value)
+  def ChangeAtten(self, value):
+    # value is 0 to 31
+    self.pc2hermes[4 * 10 + 3] = value & 0x1F			# C0 index == 0b1010, C4[4:0] attenuator, 0 to 31 dB
+    self.SetControlBit(0b1010, 5, value)			# enable attenuator
+    QS.pc_to_hermes(self.pc2hermes)
+    if DEBUG: print ("Change attenuator to", value)
+  def ChangePreamp(self, value):
+    self.SetControlBit(0b0000, 10, value)			# enable preamp
   def SetTxLevel(self):
     try:
       tx_level = self.conf.tx_level[self.band]
@@ -653,7 +663,7 @@ class Hardware(BaseHardware):
       tx_level = 0
     elif tx_level > 255:
       tx_level = 255
-    self.pc2hermes[4 * 9] = tx_level			# C0 index == 0x1001, C1[7:0] Tx level
+    self.pc2hermes[4 * 9] = tx_level			# C0 index == 0b1001, C1[7:0] Tx level
     QS.pc_to_hermes(self.pc2hermes)
     if DEBUG: print("Change tx_level to", tx_level)
   def MultiRxCount(self, count):	# count == number of additional receivers besides the Tx/Rx receiver: 1, 2, 3
@@ -876,6 +886,8 @@ class Hardware(BaseHardware):
       QS.set_hermeslite_writepointer(0)
     return False
   def WriteQueue(self, wait=False):
+    if self.hermes_board_id != 6:
+      return False
     self._wait_queue()
     # Send next write
     self.old_writequeue = self.pc2hermeslitewritequeue[:]

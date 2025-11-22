@@ -18,7 +18,7 @@ from quisk_hardware_model import Hardware as BaseHardware
 DEBUG = 1
 
 # Define the name of the hardware and the items on the hardware screen (see quisk_conf_defaults.py):
-################ Receivers PerseusSDR, The PerseusSDR interface to multiple hardware SDRs.
+################ Receivers PerseusSDR, The PerseusSDR interface to multiple SDRs.
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'perseuspkg/quisk_hardware.py'

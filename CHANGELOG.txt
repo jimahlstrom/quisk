@@ -1,3 +1,15 @@
+Quisk Version 4.2.47  November 2025
+===================================
+To improve the performance of Quisk with the Anan 10-E and other OpenHPSDR radios, I added
+a new type of radio "OpenHPSDR". Use this type for the Anan 10-E and similar radios. It removes
+all the protocol extensions added by the Hermes-Lite2 project.  I removed the configuration
+option "Hermes Lite2 protocol enable". This is now automatic.
+
+I added buttons for antennas 0, 1, 2 and 3 for OpenHPSDR radios that support more antennas.
+I added controls for the OpenHPSDR preamplifier and attenuator.
+
+I do not have any Apache Labs radios, so I must depend on my users to report problems and solutions.
+
 Quisk Version 4.2.46  October 2025
 ==================================
 I fixed a bug in Hamlib rig 2 which happens with the new Pure Signal code. The Hamlib "f" command

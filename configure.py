@@ -88,6 +88,7 @@ class Configuration:
       platform_ignore = 'win_'
     self.sections = []
     self.receiver_data = []
+    self.receiver_explain = []
     self.StatePath = conf.settings_file_path
     if not self.StatePath:
       self.StatePath = os.path.join(app.QuiskFilesDir, "quisk_settings.json")
@@ -601,6 +602,7 @@ class Configuration:
     # Receiver sections start with 16 #, "Receivers ", receiver name, explain
     # self.receiver_data is a list of [receiver_name, receiver_data]
     # receiver_data is a list of [data_name, text, fmt, help_text, values]
+    # self.receiver_explain is a list of the text in Receivers: the name, a comma and the explanation.
 
     # Variable names start with ## variable_name   variable_text, format
     #     The format is integer, number, text, boolean, integer choice, text choice, rfile
@@ -638,6 +640,7 @@ class Configuration:
         continue
       if line[0:27] == '################ Receivers ':
         section = 'Receivers'
+        self.receiver_explain.append(line[27:].strip())
         args = line[27:].split(',', 1)
         rxname = args[0].strip()
         section_data = []
@@ -2298,7 +2301,7 @@ class ControlMixin:
       if self.radio_name == Settings[1]:	# changed for current radio
         if name in ('hot_key_ptt_toggle', 'hot_key_ptt_if_hidden', 'keyupDelay', 'cwTone', 'pulse_audio_verbose_output',
                     'start_cw_delay', 'start_ssb_delay', 'maximum_tx_secs', 'quisk_serial_cts', 'quisk_serial_dsr',
-                    'hot_key_ptt1', 'hot_key_ptt2', 'midi_ptt_toggle', 'TxRxSilenceMsec', 'hermes_lite2_enable',
+                    'hot_key_ptt1', 'hot_key_ptt2', 'midi_ptt_toggle', 'TxRxSilenceMsec',
                     'fixed_tune_offset'):
           setattr(conf, name, x)
           application.ImmediateChange(name)
@@ -2737,8 +2740,8 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     self.NextRow()
     rb = self.AddRadioButton(1, "Add a new radio with the general type", self.NewTop)
     choices = []
-    for name, data in local_conf.receiver_data:
-      choices.append(name)
+    for explain in local_conf.receiver_explain:
+      choices.append(explain)
     choices.sort()
     self.add_type = self.AddComboCtrl(2, '', choices=choices, no_edit=True)
     self.add_type.SetSelection(0)
@@ -2810,7 +2813,7 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     if not name or self.DuplicateName(name):
       return
     self.add_name.SetValue('')
-    typ = self.add_type.GetValue().strip()
+    typ = self.add_type.GetValue().split(',')[0].strip()
     if local_conf.AddRadio(name, typ):
       self.NewRadioNames()
       local_conf.settings_changed = True

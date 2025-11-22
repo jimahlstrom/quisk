@@ -1,9 +1,5 @@
 # This file supports various hardware boxes at my shack
 
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
 import sys, struct, math, socket, select, time, traceback, os
 import wx, wx.lib.buttons
 
@@ -410,19 +406,16 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
     self.set_C = 0
     self.set_HighZ = 0
     self.antnum = 0				# Antenna number 0 or 1
-    self.dipole2 = None #AntennaControl(app, conf)	# Control the KI8BV dipole
-    if False and conf.use_rx_udp == 10:		# Hermes UDP protocol for Hermes-Lite2
-      path = 'TunerLCZ_HL2.txt'
-    else:
-      path = 'TunerLCZ.txt'
+    self.dipole2 = AntennaControl(app, conf)	# Control the KI8BV dipole
+    path = 'TunerLCZ.txt'
     if sys.platform == "win32":
-      path = 'C:/pub/' + path
+      self.path = 'C:/pub/' + path
     else:
-      path = '/home/jim/pub/' + path
-    fp = open(path, "r")
+      self.path = '/home/jim/pub/' + path
+    fp = open(self.path, "r")
     lines = fp.readlines()
     fp.close()
-    self.TunerLCZ = [(0, 0, 0, 0), (999111000, 0, 0, 0)]	# Add dummy first and last entry.
+    self.TunerLCZ = []
     for line in lines:
       freq, antL, antC, hilo = line.split()
       freq = int(freq)
@@ -451,7 +444,12 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
     pass
   def ChangeBand(self, band):
     pass
-  def FindLCZ(self, tx_freq):
+  def SaveLCZ(self):
+    fp = open(self.path, 'w')
+    for tup in self.TunerLCZ:
+      fp.write("%12d %2d %2d %d\n" % tup)
+    fp.close()
+  def FindIndexTup(self, tx_freq):
     i1 = 0
     i2 = len(self.TunerLCZ) - 1
     while 1:	# binary partition
@@ -462,20 +460,14 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
         i2 = i
       if i2 - i1 <= 1:
         break
-    # The correct setting is between i1 and i2.
+    # The correct setting is between i1 and i2, or below i1 or above i2.
     # Choose the index that is closest in frequency.
-    delta1 = tx_freq - self.TunerLCZ[i1][0]
-    delta2 = self.TunerLCZ[i2][0] - tx_freq
-    if i1 == 0:				# below the first frequency
+    if abs(tx_freq - self.TunerLCZ[i1][0]) < abs(tx_freq - self.TunerLCZ[i2][0]):
       index = i1
-    elif i2 == len(self.TunerLCZ) - 1:	# above the last frequency
+    else:
       index = i2
-    elif delta2 < delta1:	# i2 is closer
-      index = i2
-    else:			# i1 is closer
-      index = i1
-    if DEBUG: print ("AntennaTuner FindLCZ", tx_freq, i1, i2, len(self.TunerLCZ), self.TunerLCZ[index])
-    return self.TunerLCZ[index]
+    if DEBUG: print ("StatuinControlGUI FindIndexTup", tx_freq, i1, i2, len(self.TunerLCZ), index, self.TunerLCZ[index])
+    return index, self.TunerLCZ[index]
   def SetTxFreq(self, tx_freq, no_tune=False):
     #if DEBUG: print("AntennaTuner SetTxFreq", tx_freq)
     self.tx_freq = tx_freq
@@ -496,7 +488,7 @@ class AntennaTuner:     # Control my homebrew antenna tuner and my KI8BV dipole
     if abs(self.tune_freq - tx_freq) < 5000:		# ignore small changes
       return
     self.tune_freq = tx_freq
-    f, newL, newC, newH = self.FindLCZ(tx_freq)
+    index, (f, newL, newC, newH) = self.FindIndexTup(tx_freq)
     if newH != self.set_HighZ or self.set_C != newC or self.set_L != newL:
       self.set_HighZ = newH
       self.set_C = newC
@@ -540,26 +532,7 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     self.conf = conf
     self.data_saving = False
     self.tx_freq = 0
-    if sys.platform == "win32":
-      self.filename = 'C:/pub/TunerLCZ.tmp'
-    else:
-      self.filename = '/home/jim/pub/TunerLCZ.tmp'
-    try:
-      fp = open(self.filename, "r")
-    except FileNotFoundError:
-      lines = ()
-    else:
-      lines = fp.readlines()
-      fp.close()
-    self.TunerLCZ = [(0, 0, 0, 0), (999111000, 0, 0, 0)]	# Add dummy first and last entry.
-    for line in lines:
-      freq, antL, antC, hilo = line.split()
-      freq = int(freq)
-      antL = int(antL)
-      antC = int(antC)
-      hilo = int(hilo)
-      self.TunerLCZ.append((freq, antL, antC, hilo))
-    self.TunerLCZ.sort()
+    self.anttuner = self.hware.anttuner
     self.SetBackgroundColour('light steel blue')
     self.Bind(wx.EVT_CHAR_HOOK, self.OnKeyDown)
     sizer = wx.GridBagSizer(hgap=5, vgap=3)
@@ -569,6 +542,7 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     self.bands = []
     for band in ('160', '80', '60', '40', '30', '20', '17', '15', '12', '10'):
       b = wx.lib.buttons.GenToggleButton(self, -1, band)
+      b.Enable(False)
       b.SetUseFocusIndicator(False)
       b.SetBezelWidth(4)
       self.bands.append(b)
@@ -605,6 +579,7 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     szr = wx.BoxSizer(wx.HORIZONTAL)
     szr.AddSpacer(20)
     b = wx.lib.buttons.GenToggleButton(self, -1, "Key Down")
+    b.Enable(False)
     b.SetFont(font)
     b.SetUseFocusIndicator(False)
     b.SetBezelWidth(4)
@@ -612,6 +587,7 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     szr.Add(b)
     szr.AddSpacer(10)
     b = wx.lib.buttons.GenToggleButton(self, -1, "FilterV2 Preamp")
+    b.Enable(False)
     b.SetFont(font)
     b.SetUseFocusIndicator(False)
     b.SetBezelWidth(4)
@@ -623,16 +599,31 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     b.SetFont(font)
     szr.Add(b, flag=wx.ALIGN_CENTER_VERTICAL)
     szr.AddSpacer(10)
-    self.freq_entry = wx.TextCtrl(self, value='0000.000', style=wx.TE_PROCESS_ENTER)
+    self.freq_entry = wx.StaticText(self, -1, "0000.000")
+    #self.freq_entry = wx.TextCtrl(self, value='0000.000', style=wx.TE_PROCESS_ENTER)
     self.freq_entry.SetFont(font)
-    self.Bind(wx.EVT_TEXT_ENTER, self.OnFreqEntry, self.freq_entry)
-    szr.Add(self.freq_entry)
+    #self.Bind(wx.EVT_TEXT_ENTER, self.OnFreqEntry, self.freq_entry)
+    szr.Add(self.freq_entry, flag=wx.ALIGN_CENTER_VERTICAL)
     szr.AddSpacer(10)
-    b = wx.lib.buttons.GenButton(self, -1, "Search Freq")
+    b = wx.lib.buttons.GenButton(self, -1, "Freq-")
     b.SetUseFocusIndicator(False)
     b.SetBezelWidth(4)
     b.SetFont(font)
-    self.Bind(wx.EVT_BUTTON, self.OnButtonSearch, b)
+    self.Bind(wx.EVT_BUTTON, self.OnButtonDown, b)
+    szr.Add(b)
+    szr.AddSpacer(10)
+    b = wx.lib.buttons.GenButton(self, -1, "Freq+")
+    b.SetUseFocusIndicator(False)
+    b.SetBezelWidth(4)
+    b.SetFont(font)
+    self.Bind(wx.EVT_BUTTON, self.OnButtonUp, b)
+    szr.Add(b)
+    szr.AddSpacer(10)
+    b = wx.lib.buttons.GenButton(self, -1, "Delete")
+    b.SetUseFocusIndicator(False)
+    b.SetBezelWidth(4)
+    b.SetFont(font)
+    self.Bind(wx.EVT_BUTTON, self.OnButtonDelete, b)
     szr.Add(b)
     sizer.Add(szr, pos=(row, 0), span=(1, 3))
     if frame is None:
@@ -648,13 +639,13 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
       self.Bind(wx.EVT_TIMER, self.HeartBeat)
       self.timer.Start(100)
   def SetTxFreq(self, tx_freq):
-    #print("StationControlGUI SetTxFreq", tx_freq)
+    tx_freq = ((tx_freq + 500) // 1000) * 1000
     self.tx_freq = tx_freq
-    index, tup = self.FindIndexTup(tx_freq)
+    anttuner = self.anttuner
+    index, tup = anttuner.FindIndexTup(tx_freq)
     self.sliderL.SetValue(tup[1])
     self.sliderC.SetValue(tup[2])
     self.btnHiLo.SetValue(tup[3])
-    anttuner = self.hware.anttuner
     fff, anttuner.set_L, anttuner.set_C, anttuner.set_HighZ = tup
     if tx_freq < 17000000:
       anttuner.antnum = 0
@@ -663,31 +654,7 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     if anttuner.antnum == 1 and anttuner.dipole2:
       anttuner.dipole2.SetTxFreq(tx_freq)
     anttuner.WantData()
-  def FindIndexTup(self, tx_freq):
-    i1 = 0
-    i2 = len(self.TunerLCZ) - 1
-    while 1:	# binary partition
-      i = (i1 + i2) // 2
-      if self.TunerLCZ[i][0] < tx_freq:
-        i1 = i
-      else:
-        i2 = i
-      if i2 - i1 <= 1:
-        break
-    # The correct setting is between i1 and i2.
-    # Choose the index that is closest in frequency.
-    delta1 = tx_freq - self.TunerLCZ[i1][0]
-    delta2 = self.TunerLCZ[i2][0] - tx_freq
-    if i1 == 0:				# below the first frequency
-      index = i1
-    elif i2 == len(self.TunerLCZ) - 1:	# above the last frequency
-      index = i2
-    elif delta2 < delta1:	# i2 is closer
-      index = i2
-    else:			# i1 is closer
-      index = i1
-    if DEBUG: print ("StatuinControlGUI FindLCZ", tx_freq, i1, i2, len(self.TunerLCZ), index, self.TunerLCZ[index])
-    return index, self.TunerLCZ[index]
+    self.freq_entry.SetLabel("%.3f" % (tx_freq * 1E-6))
   def OnBtnClose(self, event):
     self.hware.anttuner.close()
     self.hware.controlbox.close()
@@ -731,16 +698,15 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     f = ((f + 500) // 1000) * 1000
     if self.hware.v2filter:
       self.hware.v2filter.SetTxFreq(f)
-    self.hware.anttuner.SetTxFreq(f, no_tune=True)
+    self.anttuner.SetTxFreq(f, no_tune=True)
     self.freq_entry.ChangeValue("%.3f" % (f * 1E-6))
     self.SetTxFreq(f)
   def OnButtonHiLo(self, event):
-    anttuner = self.hware.anttuner
     if self.btnHiLo.GetValue():
-      anttuner.set_HighZ = 1
+      self.anttuner.set_HighZ = 1
     else:
-      anttuner.set_HighZ = 0
-    anttuner.WantData()
+      self.anttuner.set_HighZ = 0
+    self.anttuner.WantData()
   def OnFreqEntry(self, event=None):
     freq = self.freq_entry.GetValue()
     freq = float(freq) * 1E6
@@ -752,11 +718,27 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     freq = int(freq + 0.1)
     self.tx_freq = freq
     self.SetTxFreq(self.tx_freq)
+  def OnButtonDown(self, event):
+    index, tup = self.anttuner.FindIndexTup(self.tx_freq)
+    index -= 1
+    if index >= 0:
+      self.SetTxFreq(self.anttuner.TunerLCZ[index][0])
+  def OnButtonUp(self, event):
+    index, tup = self.anttuner.FindIndexTup(self.tx_freq)
+    index += 1
+    if index < len(self.anttuner.TunerLCZ):
+      self.SetTxFreq(self.anttuner.TunerLCZ[index][0])
+  def OnButtonDelete(self, event):
+    index, tup = self.anttuner.FindIndexTup(self.tx_freq)
+    if self.tx_freq == self.anttuner.TunerLCZ[index][0]:
+      del self.anttuner.TunerLCZ[index]
+    if index > 0:
+      self.SetTxFreq(self.anttuner.TunerLCZ[index - 1][0])
+    elif len(self.anttuner.TunerLCZ) > 0:
+      self.SetTxFreq(self.anttuner.TunerLCZ[0][0])
+    else:
+      self.SetTxFreq(0)
   def OnButtonSave(self, event):
-    freq = self.freq_entry.GetValue()
-    freq = float(freq) * 1E6
-    freq = int(freq + 0.1)
-    self.tx_freq = freq
     L = self.sliderL.GetValue()
     C = self.sliderC.GetValue()
     if self.btnHiLo.GetValue():
@@ -764,22 +746,19 @@ class StationControlGUI(wx.Frame):    # Display a stand-alone control window for
     else:
       hilo = 0
     tup = (self.tx_freq, L, C, hilo)
-    index, t = self.FindIndexTup(self.tx_freq)
-    if self.tx_freq == self.TunerLCZ[index][0]:
-      self.TunerLCZ[index] = tup
+    index, t = self.anttuner.FindIndexTup(self.tx_freq)
+    if self.tx_freq == self.anttuner.TunerLCZ[index][0]:
+      self.anttuner.TunerLCZ[index] = tup
     else:
-      self.TunerLCZ.append(tup)
-    self.TunerLCZ.sort()
-    fp = open(self.filename, 'w')
-    for tup in self.TunerLCZ[1:-1]:	# Throw away dummy entries
-      fp.write("%12d %2d %2d %d\n" % tup)
-    fp.close()
+      self.anttuner.TunerLCZ.append(tup)
+    self.anttuner.TunerLCZ.sort()
+    self.anttuner.SaveLCZ()
   def OnSliderL(self, event=None):
-    self.hware.anttuner.set_L = self.sliderL.GetValue()
-    self.hware.anttuner.WantData()
+    self.anttuner.set_L = self.sliderL.GetValue()
+    self.anttuner.WantData()
   def OnSliderC(self, event=None):
-    self.hware.anttuner.set_C = self.sliderC.GetValue()
-    self.hware.anttuner.WantData()
+    self.anttuner.set_C = self.sliderC.GetValue()
+    self.anttuner.WantData()
   def OnBtnV2Preamp(self, event):
     if self.hware.v2filter:
       self.hware.v2filter.SetPreamp(event.GetEventObject().GetValue())
@@ -1073,21 +1052,3 @@ class AT200PC:		# Control an AT-200PC autotuner made by LDG
         self.set_C += 1
       elif text == 'C-':
         self.set_C -= 1
-
-class App(wx.App):
-  def OnInit(self):
-    if sys.path[0] != "'.'":		# Make sure the current working directory is on path
-      sys.path.insert(0, '.')
-    import quisk_conf_defaults as conf
-    import quisk_hardware_model as hardware
-    self.bottom_widgets = None
-    hardware.anttuner = AntennaTuner(self, conf)	# Control the antenna tuner
-    hardware.v2filter = FilterBoxV2(self, conf)	# Control V2 filter box
-    hardware.controlbox = ControlBox(self, conf)	# Control my Station Control Box
-    self.main_frame = frame = StationControlGUI (None, hardware, self, conf)
-    frame.Open()
-    frame.Show()
-    return True
-
-if __name__ == '__main__':
-  App().MainLoop()
