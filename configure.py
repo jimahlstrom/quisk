@@ -159,9 +159,9 @@ class Configuration:
         dlg.Destroy()
     else:
       radio_dict["use_soapy"] = '0'
-    if radio_type not in ("HiQSDR", "Hermes", "Red Pitaya", "Odyssey", "Odyssey2"):
+    if radio_type not in ("HiQSDR", "Hermes", "Red Pitaya", "Odyssey", "Odyssey2", "OpenHPSDR"):
       radio_dict["use_rx_udp"] = '0'
-    if radio_type in ("Hermes", "Red Pitaya", "Odyssey2"):
+    if radio_type in ("Hermes", "Red Pitaya", "Odyssey2", "OpenHPSDR"):
       if "Hermes_BandDict" not in radio_dict:
         radio_dict["Hermes_BandDict"] = {}
       if "Hermes_BandDictTx" not in radio_dict:

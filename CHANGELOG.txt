@@ -1,3 +1,7 @@
+Quisk Version 4.2.48  November 2025
+===================================
+This is a quisk fix for a bug in the new OpenHPSDR radios. It fixes use_rx_udp that was reset to zero.
+
 Quisk Version 4.2.47  November 2025
 ===================================
 To improve the performance of Quisk with the Anan 10-E and other OpenHPSDR radios, I added
