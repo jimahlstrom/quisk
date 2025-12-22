@@ -1,3 +1,25 @@
+Quisk Version 4.2.49  December 2025
+===================================
+This version adds more features for the Anan 10E and other OpenHPSDR radios. Please test.
+
+I added the forward power, SWR, temperature and PA current display to the OpenHPSDR radio. But
+I don't have that radio so I need some help. I think the forward and reverse power connections
+are correct, but it is still necessary to create a table to convert analog input codes to power.
+Go to the Hardware screen and check the "Power meter calibration" setting. You will need to enter
+"New" and create a suitable table. To see the ADC values, choose table "Show ADC".
+
+There is no protocol standard to specify which analog input is used for temperature and PA current.
+And AFAIK the Anan 10E has no such sensors. I am hoping to use the board ID to find the right input.
+The ADC conversion is linear and the two points are specified on the Hardware screen.
+
+I currently assigned the analog inputs as follows:
+AIN1	Forward power
+AIN2	Reverse power
+AIN3	PA current
+AIN5	Temperature
+If you need to see the ADC codes 0-4095 for each input, go to hermes/quisk_hardware.py and
+change DEBUG_SENSORS to one.
+
 Quisk Version 4.2.48  November 2025
 ===================================
 This is a quisk fix for a bug in the new OpenHPSDR radios. It fixes use_rx_udp that was reset to zero.

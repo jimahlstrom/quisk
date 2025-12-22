@@ -6799,7 +6799,7 @@ class App(wx.App):
     if self.timer - self.heart_time0 > 0.10:	# call hardware to perform background tasks:
       self.heart_time0 = self.timer
       Hardware.HeartBeat()
-      if conf.use_rx_udp == 10 and Hardware.hermes_board_id == 6:
+      if Hardware.is_HermesLite2:
         self.tx_inhibit = QS.get_params('quisk_tx_inhibit')
       else:
         self.tx_inhibit = 0

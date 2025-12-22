@@ -15,6 +15,7 @@ from quisk_hardware_model import Hardware as BaseHardware
 
 DEBUG = 0
 DEBUG_I2C = 0
+DEBUG_SENSORS = 0
 
 class IOBoard:
   "This class controls the N2ADR IO Board for the HermesLite 2"
@@ -46,9 +47,9 @@ class IOBoard:
     self.old_receive = None
     self.slow = 0
   def HeartBeat(self):	# Called at 10 Hz for housekeeping tasks
-    if not QS.get_params('rx_udp_started'):
+    if not self.hardware.is_HermesLite2:
       return
-    if self.hardware.hermes_board_id != 6:
+    if not QS.get_params('rx_udp_started'):
       return
     if self.have_IO_Board is None:
       resp = self.hardware.ReadI2C(0x7d, 0x41, 0)	# Check for the N2ADR HL2 IO Board
@@ -156,6 +157,7 @@ class Hardware(BaseHardware):
     self.hermes_ip = ""
     self.hermes_code_version = -1
     self.hermes_board_id = -1
+    self.is_HermesLite2 = False
     self.hermes_temperature = 0.0
     self.hermes_fwd_power = 0.0
     self.hermes_rev_power = 0.0
@@ -276,6 +278,7 @@ class Hardware(BaseHardware):
             self.hermes_ip = addr[0]
             self.hermes_code_version = data[9]
             self.hermes_board_id = data[10]
+            self.is_HermesLite2 = self.hermes_board_id == 6 and self.conf.hardware_file_type == "Hermes"
             QS.set_hermes_id(data[9], data[10])
             if data[0x16] >> 6 == 0:
               QS.set_params(bandscopeScale = 2048)
@@ -322,6 +325,7 @@ class Hardware(BaseHardware):
       bid = 6
       self.hermes_code_version = code
       self.hermes_board_id = bid
+      self.is_HermesLite2 = self.hermes_board_id == 6 and self.conf.hardware_file_type == "Hermes"
       QS.set_hermes_id(code, bid)
       st = 'Capture from Hermes device at specified IP %s' % self.hermes_ip
       found = True
@@ -336,9 +340,13 @@ class Hardware(BaseHardware):
   def open(self):
     self.delay_config = True	# Delay sending message to HL2 until after sound starts
     # This list only changes control bits; no use of WriteQueue()
-    for name in ('keyupDelay',
-        'hermes_lowpwr_tr_enable', 'hermes_PWM', 'hermes_disable_sync', 'hermes_power_amp', 'Hermes_BandDictEnTx'):
-      self.ImmediateChange(name)
+    self.ImmediateChange('keyupDelay')
+    self.ImmediateChange('Hermes_BandDictEnTx')
+    if self.is_HermesLite2:
+      for name in ('hermes_lowpwr_tr_enable', 'hermes_PWM', 'hermes_disable_sync', 'hermes_power_amp'):
+        self.ImmediateChange(name)
+    #else:	# DEBUG: Turn on power amp for testing OpenHPSDR radio with my Hermes Lite2
+    #  self.SetControlBit(0x09, 19, 1)
     return self.config_text
   def GetValue(self, name):	# return values stored in the hardware
     if name == 'Hware_Hl2_EepromIP':
@@ -497,7 +505,15 @@ class Hardware(BaseHardware):
     self.key_was_down = key_down
     if self.TFRC_counter >= 3:
       self.TFRC_counter = 0
-      self.hermes_temperature, self.hermes_fwd_power, self.hermes_rev_power, self.hermes_pa_current, self.hermes_fwd_peak, self.hermes_rev_peak = QS.get_hermes_TFRC()
+      AIN1_avg, AIN1_peak, AIN2_avg, AIN2_peak, AIN3, AIN4, AIN5, AIN6 = QS.get_hermes_TFRC()
+      if self.hermes_board_id == 6:
+        (self.hermes_fwd_power, self.hermes_fwd_peak, self.hermes_rev_power, self.hermes_rev_peak,
+         self.hermes_pa_current, self.hermes_temperature) = AIN1_avg, AIN1_peak, AIN2_avg, AIN2_peak, AIN3, AIN5
+      else:
+        (self.hermes_fwd_power, self.hermes_fwd_peak, self.hermes_rev_power, self.hermes_rev_peak,
+         self.hermes_pa_current, self.hermes_temperature) = AIN1_avg, AIN1_peak, AIN2_avg, AIN2_peak, AIN3, AIN5
+      if DEBUG_SENSORS:
+        print("AIN 1-6 %4d %4d %4d %4d %4d %4d" % (AIN1_avg, AIN2_avg, AIN3, AIN4, AIN5, AIN6))
       if self.application.bottom_widgets:
         self.application.bottom_widgets.UpdateText()
     if self.delay_config and QS.get_params('rx_udp_started'):
@@ -886,7 +902,7 @@ class Hardware(BaseHardware):
       QS.set_hermeslite_writepointer(0)
     return False
   def WriteQueue(self, wait=False):
-    if self.hermes_board_id != 6:
+    if not self.is_HermesLite2:
       return False
     self._wait_queue()
     # Send next write

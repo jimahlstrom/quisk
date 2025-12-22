@@ -218,14 +218,17 @@ static unsigned char quisk_hermes_to_pc[5 * 4];		// data received from the Herme
 static unsigned char quisk_hermeslite_response[5]; // response from Hermes-Lite commands
 unsigned int quisk_hermes_code_version = -1;		// code version returned by the Hermes hardware
 unsigned int quisk_hermes_board_id = -1;		// board ID returned by the Hermes hardware
-static double hermes_temperature;	// average temperature
-static double hermes_fwd_power;		// average forward power
-static double hermes_rev_power;		// average reverse power
-static double hermes_fwd_peak;		// peak forward power
-static double hermes_rev_peak;		// peak reverse power
-static double hermes_pa_current;	// average power amp current
-static int hermes_count_temperature;	// number of temperature samples
-static int hermes_count_current;	// number of current samples
+static double hpsdr_AIN1_avg;		// average forward power
+static double hpsdr_AIN1_peak;		// peak forward power
+static double hpsdr_AIN2_avg;		// average reverse power
+static double hpsdr_AIN2_peak;		// peak reverse power
+static double hpsdr_AIN3;		// average power amp current
+static double hpsdr_AIN4;
+static double hpsdr_AIN5;		// average temperature
+static double hpsdr_AIN6;
+static int hpsdr_AIN3_count;	// number of current samples
+static int hpsdr_AIN4_count;	// number of current samples
+static int hpsdr_AIN5_count;	// number of current samples
 static int hardware_ptt;		// hardware PTT switch
 
 int quisk_hardware_cwkey;		// hardware CW key from UDP or USB
@@ -3136,31 +3139,43 @@ static PyObject * get_hermes_TFRC(PyObject * self, PyObject * args)
 
 	if (!PyArg_ParseTuple (args, ""))
 		return NULL;
-	if (hermes_count_temperature > 0) {
-		hermes_temperature /= hermes_count_temperature;
-		hermes_fwd_power /= hermes_count_temperature;
+	if (hpsdr_AIN5_count > 0) {
+		hpsdr_AIN5 /= hpsdr_AIN5_count;
+		hpsdr_AIN1_avg /= hpsdr_AIN5_count;
 	}
 	else {
-		hermes_temperature  = 0.0;
-		hermes_fwd_power  = 0.0;
+		hpsdr_AIN5  = 0.0;
+		hpsdr_AIN1_avg  = 0.0;
 	}
-	if (hermes_count_current > 0) {
-		hermes_rev_power /= hermes_count_current;
-		hermes_pa_current /= hermes_count_current;
+	if (hpsdr_AIN3_count > 0) {
+		hpsdr_AIN2_avg /= hpsdr_AIN3_count;
+		hpsdr_AIN3 /= hpsdr_AIN3_count;
 	}
 	else {
-		hermes_rev_power  = 0.0;
-		hermes_pa_current  = 0.0;
+		hpsdr_AIN2_avg  = 0.0;
+		hpsdr_AIN3  = 0.0;
 	}
-	ret = Py_BuildValue("dddddd", hermes_temperature, hermes_fwd_power, hermes_rev_power, hermes_pa_current, hermes_fwd_peak, hermes_rev_peak);
-	hermes_temperature = 0;
-	hermes_fwd_power = 0;
-	hermes_rev_power = 0;
-	hermes_fwd_peak = 0;
-	hermes_rev_peak = 0;
-	hermes_pa_current = 0;
-	hermes_count_temperature = 0;
-	hermes_count_current = 0;
+	if (hpsdr_AIN4_count > 0) {
+		hpsdr_AIN4 /= hpsdr_AIN4_count;
+		hpsdr_AIN6 /= hpsdr_AIN4_count;
+	}
+	else {
+		hpsdr_AIN4  = 0.0;
+		hpsdr_AIN6  = 0.0;
+	}
+	ret = Py_BuildValue("dddddddd", hpsdr_AIN1_avg, hpsdr_AIN1_peak, hpsdr_AIN2_avg, hpsdr_AIN2_peak,
+		hpsdr_AIN3, hpsdr_AIN4, hpsdr_AIN5, hpsdr_AIN6);
+	hpsdr_AIN1_avg = 0;
+	hpsdr_AIN1_peak = 0;
+	hpsdr_AIN2_avg = 0;
+	hpsdr_AIN2_peak = 0;
+	hpsdr_AIN3 = 0;
+	hpsdr_AIN4 = 0;
+	hpsdr_AIN5 = 0;
+	hpsdr_AIN6 = 0;
+	hpsdr_AIN3_count = 0;
+	hpsdr_AIN4_count = 0;
+	hpsdr_AIN5_count = 0;
 	return ret;
 }
 
@@ -3708,19 +3723,24 @@ static int read_rx_udp10(complex double * samp)	// Read samples from UDP using t
 					quisk_set_play_state();
 				}
 			}
-			else if(dindex == 1) {	// temperature and forward power
-				hermes_temperature += quisk_hermes_to_pc[4] << 8 | quisk_hermes_to_pc[5];
+			else if(dindex == 1) {
+				hpsdr_AIN5 += quisk_hermes_to_pc[4] << 8 | quisk_hermes_to_pc[5];
 				power = quisk_hermes_to_pc[6] << 8 | quisk_hermes_to_pc[7];
-				hermes_fwd_power += power;
-				hermes_fwd_peak = fmax(hermes_fwd_peak, (double)power);
-				hermes_count_temperature++;
+				hpsdr_AIN1_avg += power;
+				hpsdr_AIN1_peak = fmax(hpsdr_AIN1_peak, (double)power);
+				hpsdr_AIN5_count++;
 			}
-			else if (dindex == 2) {	// reverse power and current
+			else if (dindex == 2) {
 				power = quisk_hermes_to_pc[8] << 8 | quisk_hermes_to_pc[9];
-				hermes_rev_power += power;
-				hermes_rev_peak = fmax(hermes_rev_peak, (double)power);
-				hermes_pa_current += quisk_hermes_to_pc[10] << 8 | quisk_hermes_to_pc[11];
-				hermes_count_current++;
+				hpsdr_AIN2_avg += power;
+				hpsdr_AIN2_peak = fmax(hpsdr_AIN2_peak, (double)power);
+				hpsdr_AIN3 += quisk_hermes_to_pc[10] << 8 | quisk_hermes_to_pc[11];
+				hpsdr_AIN3_count++;
+			}
+			else if (dindex == 3) {
+				hpsdr_AIN4 += quisk_hermes_to_pc[12] << 8 | quisk_hermes_to_pc[13];
+				hpsdr_AIN6 += quisk_hermes_to_pc[14] << 8 | quisk_hermes_to_pc[15];
+				hpsdr_AIN4_count++;
 			}
 			// convert 24-bit samples to 32-bit samples; int must be 32 bits.
 			index = start + 5;

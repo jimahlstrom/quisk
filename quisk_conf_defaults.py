@@ -488,6 +488,7 @@ power_meter_std_calibrations['HL2FilterE3'] = [[ 0, 0.0 ], [ 25.865384615384617,
           [ 4093.1785714285716, 7.28994845808807 ], [ 4502.496428571429, 8.820837634286566 ], [ 4952.746071428572, 10.673213537486745 ] ]
 #power_meter_std_calibrations['HL2FilterE1'] = [[0, 0.0], [9.07, 0.002], [54.98, 0.014], [148.6, 0.057],
 #          [328.0, 0.208], [611.1, 0.646], [807.0, 1.098], [982.1, 1.6], [1223.3, 2.471], [1517.7, 3.738], [1758.7, 5.02]]
+power_meter_std_calibrations['Show ADC'] = []
 
 ## Hermes_BandDict		Rx IO Bus, dict
 # The Hermes_BandDict sets the 7 bits on the J16 connector for Rx.
@@ -661,6 +662,42 @@ Hermes_BandDictTx = {'160':0, '80':0, '60':0, '40':0, '30':0, '20':0, '17':0, '1
 # Enable the separate Rx and Tx settings for the J16 connector.
 Hermes_BandDictEnTx = False
 #Hermes_BandDictEnTx = True
+
+## calibrate_temp_20			PA temp ADC at 20\u2103, integer
+# This is the ADC code returned for a temperature of 20C.
+# To see the ADC code being returned, enter zero for both temperature codes.
+# Linear interpolation is used to calculate the temperature.
+# Changes are immediate (no need to restart).
+calibrate_temp_20 = 0
+
+## calibrate_temp_40			PA temp ADC at 40\u2103, integer
+# This is the ADC code returned for a temperature of 40C.
+# To see the ADC code being returned, enter zero for both temperature codes.
+# Linear interpolation is used to calculate the temperature.
+# Changes are immediate (no need to restart).
+calibrate_temp_40 = 0
+
+## calibrate_current_0			PA current ADC at zero, integer
+# This is the ADC code returned for a PA current of zero.
+# To see the ADC code being returned, enter zero for both current codes.
+# Linear interpolation is used to calculate the current.
+# Changes are immediate (no need to restart).
+calibrate_current_0 = 0
+
+## calibrate_current_1			PA current ADC at 1 amp, integer
+# This is the ADC code returned for a PA current of one amp.
+# To see the ADC code being returned, enter zero for both current codes.
+# Linear interpolation is used to calculate the current.
+# Changes are immediate (no need to restart).
+calibrate_current_1 = 0
+
+## power_meter_calib_name		Power meter calibration, text choice
+# This is the calibration table used to convert the power sensor voltage measured by the ADC to the transmit power display.
+# It is a table of ADC codes and the corresponding measured power level.  If you have a power meter, you can create your own
+# table by selecting "New". Then enter ten or more power measurements from low to full power.
+# For the Hermes Lite2 version E3 filter board, use the built-in table "HL2FilterE3".
+# Changes are immediate (no need to restart).
+power_meter_calib_name = 'HL2FilterE3'
 
 
 ################ Receivers SoapySDR, The SoapySDR interface to multiple SDRs.

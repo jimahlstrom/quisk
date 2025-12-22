@@ -154,6 +154,12 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
     current = " PA %4.0f ma" % (1000*current)
     self.text_pa_current.SetLabel(current)
     # forward and reverse peak power
+    if not self.hardware.power_interpolator:	# For no interpolator, show ADC
+      fwd = self.hardware.hermes_fwd_power
+      rev = self.hardware.hermes_rev_power
+      self.text_fwd_power.SetLabel("Fwd ADC %4d" % fwd)
+      self.text_swr.SetLabel("Rev ADC %4d" % rev)
+      return
     fwd, rev = self.Code2FwdRevWatts(self.hardware.hermes_fwd_peak, self.hardware.hermes_rev_peak)
     # forward less reverse power
     power = fwd - rev

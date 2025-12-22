@@ -2302,7 +2302,7 @@ class ControlMixin:
         if name in ('hot_key_ptt_toggle', 'hot_key_ptt_if_hidden', 'keyupDelay', 'cwTone', 'pulse_audio_verbose_output',
                     'start_cw_delay', 'start_ssb_delay', 'maximum_tx_secs', 'quisk_serial_cts', 'quisk_serial_dsr',
                     'hot_key_ptt1', 'hot_key_ptt2', 'midi_ptt_toggle', 'TxRxSilenceMsec',
-                    'fixed_tune_offset'):
+                    'fixed_tune_offset', 'calibrate_temp_20', 'calibrate_temp_40', 'calibrate_current_0', 'calibrate_current_1'):
           setattr(conf, name, x)
           application.ImmediateChange(name)
         elif name[0:4] in ('lin_', 'win_'):
@@ -2403,6 +2403,7 @@ class BaseWindow(wx.ScrolledWindow, ControlMixin):
   def __init__(self, parent):
     wx.ScrolledWindow.__init__(self, parent)
     ControlMixin.__init__(self, parent)
+    self.SetScrollRate(8, 8)
 
 class ConfigConfig(BaseWindow):
   def __init__(self, parent, width):
@@ -2513,7 +2514,6 @@ The CW message will then repeat. A time of zero means no repeat.'
     sl, btn = self.AddTextSliderHelp(4, "    Repeat secs %.1f  ", 0, 0, 100, self.OnPlayFileRepeat, help_text, span=2, scale=0.1)
     self.NextRow()
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def MakeFileButton(self, text, path, index, name, help_text):
     if index < 10:	# record buttons
       cb = self.AddCheckBox(4, text, self.OnCheckRecPlay)
@@ -2691,7 +2691,6 @@ class ConfigTxAudio(BaseWindow):
     application.CtrlTxAudioPreemph = sld
     self.NextRow()
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def OnTimer(self, event):
     if not self.tmp_playing:
       self.timer.Stop()
@@ -2769,7 +2768,6 @@ class Radios(BaseWindow):	# The "Radios" first-level page
     self.apply_btn = self.AddPushButton(3, "Apply", self.OnBtnApply)
     self.NewRadioNames()
     self.NewTop()
-    self.SetScrollRate(1, 1)
   def NewTop(self, event=None):
     if event:
       btn = event.GetEventObject()
@@ -3006,7 +3004,6 @@ class RadioSection(BaseWindow):		# The pages for each section in the second-leve
       self.AddColSpacer(2, 20)
       self.AddColSpacer(5, 20)
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def OnButtonChangeFavorites(self, event):
     if isinstance(event, (ChoiceCombo, ComboCtrl)):
       path = event.GetValue()
@@ -3131,7 +3128,6 @@ class RadioHardwareBase(BaseWindow):		# The Hardware page in the second-level no
     self.NextRow(7)
     self.AddColSpacer(2, 20)
     self.AddColSpacer(5, 20)
-    self.SetScrollRate(1, 1)
   def OnButtonChangeHardware(self, event):
     if isinstance(event, (ChoiceCombo, ComboCtrl)):
       path = event.GetValue()
@@ -3178,25 +3174,24 @@ class RadioHardware(RadioHardwareBase):		# The Hardware page in the second-level
     data_names = local_conf.GetReceiverData(radio_type)
     col = 1
     border = 2
-    hermes_board_id = 0
-    if radio_type == "Hermes":
-      try:
-        hermes_board_id = application.Hardware.hermes_board_id
-      except:
-        pass
+    try:
+      is_HermesLite2 = application.Hardware.is_HermesLite2
+    except:
+      is_HermesLite2 = False
     if radio_name == Settings[1] and hasattr(application.Hardware, "ProgramGateware"):
       help_text = "Choose an RBF file and program the Gateware (FPGA software) over Ethernet."
       self.AddTextButtonHelp(1, "Gateware Update", "Program from RBF file..", application.Hardware.ProgramGateware, help_text)
       col = 1
       self.NextRow(self.row + 2)
     for name, text, fmt, help_text, values in data_names:
+      text = text.replace("\\u2103", "\u2103")
       if name in ('hardware_file_name', 'widgets_file_name'):
         pass
       elif name[0:4] == platform_ignore:
         pass
       elif name in ('Hermes_BandDictEnTx', ):
         pass
-      elif 'Hl2_' in name and hermes_board_id != 6:
+      elif 'Hl2_' in name and not is_HermesLite2:
         pass
       elif fmt[0:4] in ('dict', 'list'):
         pass
@@ -3225,7 +3220,7 @@ class RadioHardware(RadioHardwareBase):		# The Hardware page in the second-level
           col = 1
           border = 2
           self.NextRow()
-    if hermes_board_id == 6:
+    if is_HermesLite2:
       if col == 4:
         self.NextRow()
       help_text = ('This controls the bias level for transistors in the final power amplifier.  Enter a level from 0 to 255.'
@@ -3241,7 +3236,6 @@ class RadioHardware(RadioHardwareBase):		# The Hardware page in the second-level
       self.HermesWriteBiasButton = self.AddPushButton(7, "Write", self.OnButtonHermesWriteBias, border=0)
       self.HermesWriteBiasButton.Enable(enbl)
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def OnHermesChangeBias0(self, event):
     value = self.HermesBias0.GetValue()
     application.Hardware.ChangeBias0(value)
@@ -3855,7 +3849,6 @@ class RadioSound(BaseWindow):		# The Sound page in the second-level notebook for
         break
     self.gbs = gbs
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def ItemValue(self, row, col):
     data_name = self.sound_names[row][col]
     if col == 4:		# Device names
@@ -4083,7 +4076,6 @@ The Tx bits are sent as the "Alex" filters and are sent to the J16 interface.'
         self.AddBitField(col + 1, 7, 'Hermes_BandDictTx', band, bus, self.ChangeIO)
         self.NextRow()
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def SortCmp(self, item1):
     # Numerical conversion of band name to  megahertz
     try:
@@ -4258,7 +4250,6 @@ class RadioRemote(BaseWindow):		# The Remote page in the second-level notebook f
     self.AddColSpacer(3, 20)
     self.AddColSpacer(6, 20)
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def OnChangePassword(self, event):
     text = local_conf.globals.get('remote_radio_password', '')
     dlg = wx.TextEntryDialog(self, "Please enter a password for remote access",
@@ -4340,7 +4331,6 @@ class xxRadioFilters(BaseWindow):		# The Filters page in the second-level notebo
       self.NextRow()
       index += 1
     self.FitInside()
-    self.SetScrollRate(1, 1)
   def OnChangeFreq(self, event):
     freq = event.GetString()
     radio_dict = local_conf.GetRadioDict(self.radio_name)
