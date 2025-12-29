@@ -4275,6 +4275,10 @@ class App(wx.App):
     self.main_frame.SetClientSize(wx.Size(width, self.height))
     if hasattr(Hardware, 'pre_open'):       # pre_open() is called before open()
       Hardware.pre_open()
+    try:
+      self.is_HermesLite2 = Hardware.is_HermesLite2	# This is set in pre_open()
+    except:
+      self.is_HermesLite2 = False
     if self.local_conf.GetWidgets(self, Hardware, conf, frame, gbs, vertBox):
       pass
     elif conf.quisk_widgets:
@@ -6799,7 +6803,7 @@ class App(wx.App):
     if self.timer - self.heart_time0 > 0.10:	# call hardware to perform background tasks:
       self.heart_time0 = self.timer
       Hardware.HeartBeat()
-      if Hardware.is_HermesLite2:
+      if self.is_HermesLite2:
         self.tx_inhibit = QS.get_params('quisk_tx_inhibit')
       else:
         self.tx_inhibit = 0

@@ -1,3 +1,8 @@
+Quisk Version 4.2.50  December 2025
+===================================
+This is a quick fix for a bug in 4.2.49 that results in the repeated message
+AttributeError: 'Hardware' object has no attribute 'is_HermesLite2'
+
 Quisk Version 4.2.49  December 2025
 ===================================
 This version adds more features for the Anan 10E and other OpenHPSDR radios. Please test.
