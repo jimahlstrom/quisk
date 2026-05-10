@@ -6188,6 +6188,8 @@ static PyMethodDef QuiskMethods[] = {
 	{"watfall_GetPixels", watfall_GetPixels, METH_VARARGS, "Write the Waterfall image to be displayed."},
 	{"write_fftw_wisdom", write_fftw_wisdom, METH_VARARGS, "Write the current fftw wisdom to the wisdom file."},
 	{"read_fftw_wisdom", read_fftw_wisdom, METH_VARARGS, "Return the current fftw wisdom as a byte array."},
+	{"tci_get_params", (PyCFunction)quisk_tci_get_params, METH_VARARGS, "Return parameters from TCI."},
+	{"tci_set_params", (PyCFunction)quisk_tci_set_params, METH_VARARGS|METH_KEYWORDS, "Set parameters for TCI."},
 // Remote Quisk control head and slave by Ben, AC2YD
 	{"start_control_head_remote_sound", quisk_start_control_head_remote_sound, METH_VARARGS, "Start running UDP remote sound on control_head."},
 	{"stop_control_head_remote_sound", quisk_stop_control_head_remote_sound, METH_VARARGS, "Stop running UDP remote sound on control_head."},

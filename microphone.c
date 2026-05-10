@@ -1219,6 +1219,10 @@ int quisk_process_microphone(int mic_sample_rate, complex double * cSamples, int
 			count *= interp;
 			transmit_mic_carrier(cSamples, count, quiskSpotLevel / 1000.0);
 		}
+		else if (tci_tx_audio_client) {
+			count = tx_filter_digital(cSamples, count);	// filter samples, minimal processing
+			process_alc(cSamples, count, &tx_alc, DGT_U);
+		}
 		else switch (rxMode) {
 		case LSB:		// LSB
 		case USB:		// USB

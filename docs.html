@@ -1434,9 +1434,35 @@ is no longer needed
 <br>
 </p>
 <h2 id="Digital">Digital Modes </h2>
+<br>
+<h3>Digital Modes with the TCI Protocol</h3>
 <p>
+Using the sound devices in a PC to transfer digital sample streams has always caused problems.
+Several new methods are now becoming available. These are the <a href="https://github.com/ExpertSDR3/TCI">TCI protocol</a>
+used by <a href="https://eesdr.com/en/">Expert Electronics</a> for
+their SunSDR hardware
+and <a href="https://www.vita.com/page-1855484">Vita49</a> used by <a href="https://www.flexradio.com">FlexRadio</a>.
+And Hamlib is planning to add digital stream support.
+</p>
+<br>
+<p>
+Quisk can now connect to WSJT-X version 3.0.0 with the TCI protocol.
+On the Quisk Config/radio/Remote screen enter IP address 127.0.0.1 and port 40001.
+Use USB for digital modes. The DGT-* modes are for sound cards.
+In WSJT-X choose the radio "TCI Client RX1", and for audio choose "TCI audio".
+And enter the same IP and port. Everything then just works.
+If your WSJT-X does not have "TCI Client RX1" you need to update to a more recent version.
+This feature is new. To see the TCI conversation, use the "Debug level" on the Config/radio/Options screen.
+</p>
+<br>
+<h3>Digital Modes with Sound Cards</h3>
+<p>
+Digital modes need to receive the audio from the radio to decode it.
+They need to send audio to the radio to transmit.
+These audio streams have traditionally been sent using PC sound cards or
+an artificial sound card known as a Virtual Audio Cable.
 Quisk has a number of modes "DGT-" to receive and transmit digital
-signals. The modes "DGT-U" and "DGT-L" decode the signal as upper
+signals on sound devices. The modes "DGT-U" and "DGT-L" decode the signal as upper
 or lower sideband, and send the stereo audio to the digital sound
 device. The left and right channel are the same.
 The bandwidth is set with the filter buttons as

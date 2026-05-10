@@ -1423,6 +1423,19 @@ fixed_tune_offset = 0
 
 
 ################ Remote
+## tci_ip		IP address for TCI, text
+# Quisk can connect to WSJT-X and other digital programs using the TCI protocol.
+# Enter the TCI server host name.
+tci_ip = "127.0.0.1"
+
+## tci_port		IP port for TCI, integer
+# Quisk can connect to WSJT-X and other digital programs using the TCI protocol.
+# Enter the TCI port number. If the port number is zero, TCI is turned off.
+# The preferred port is 40001.
+tci_port = 0
+#tci_port = 40001
+#tci_port = 50001
+
 ## hamlib_ip            IP address for Hamlib Rig 2, text
 # You can control Quisk from Hamlib.  Set the Hamlib rig to 2 and the device for rig 2 to
 # localhost:4575.  Or choose a different name and port here.  Set the same name and port

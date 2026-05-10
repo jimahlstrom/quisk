@@ -113,7 +113,7 @@ void quisk_sample_level(const char * msg, complex double * cSamples, int nSample
 			level = d;
 	}
 	if (QuiskTimeSec() - time0 > 0.1) {
-		printf ("sample_level %s: %10.6lf count %8d\n", msg, level / scale, count);
+		printf ("peak sample level %s: %14.6lf count %8d\n", msg, level / scale, count);
 		level = 0;
 		count = 0;
 		time0 = QuiskTimeSec();
@@ -1019,7 +1019,9 @@ int quisk_read_sound(void)	// Called from sound thread
    
 	// Play digital if required
 	//if (is_DGT)
-		play_sound_interface(&DigitalOutput, nSamples, cSamples, 1, digital_output_level);
+	play_sound_interface(&DigitalOutput, nSamples, cSamples, 1, digital_output_level);
+	// Send radio sound to TCI
+	tci_send_audio(cSamples, nSamples);
    
 	// Perhaps record the speaker audio to a file
 	if ( ! key_state && file_rec_audio.fp)
@@ -1065,7 +1067,10 @@ int quisk_read_sound(void)	// Called from sound thread
 		for (i = 0; i < mic_count; i++)
 			cSamples[i] = 0;
 	}
-	//quisk_sample_level("read mic or DGT", cSamples, mic_count, CLIP16);
+	// Receive microphone sound from TCI
+	//quisk_sample_level("read mic or DGT", cSamples, mic_count, CLIP32);
+	mic_count = tci_get_mic(cSamples, mic_count);
+	//quisk_sample_level("quisk_tci", cSamples, mic_count, CLIP32);
 	// Perhaps record the microphone audio to the speaker audio file
 	if (key_state && file_rec_audio.fp)
 		quisk_record_audio(&file_rec_audio, cSamples, mic_count);

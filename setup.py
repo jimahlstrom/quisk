@@ -7,7 +7,7 @@ import os
 # You must define the version here.  A title string including
 # the version will be written to __init__.py and read by quisk.py.
 
-Version = '4.2.50'
+Version = '4.2.51'
 
 fp = open("__init__.py", "w")	# write title string
 fp.write("#Quisk version %s\n" % Version)
@@ -16,7 +16,8 @@ fp.close()
 
 sources = ['quisk.c', 'sound.c', 'is_key_down.c', 'microphone.c', 'utility.c',
 	'sound_alsa.c', 'sound_pulseaudio.c', 'sound_portaudio.c', 'sound_directx.c', 'sound_wasapi.c',
-	'filter.c', 'extdemod.c', 'freedv.c', 'quisk_wdsp.c', 'ac2yd/remote.c']
+	'filter.c', 'extdemod.c', 'freedv.c', 'quisk_wdsp.c', 'ac2yd/remote.c',
+	'tci.c', 'base64.c', 'handshake.c', 'sha1.c', 'utf8.c', 'ws.c']
 
 # Afedri hardware support added by Alex, Alex@gmail.com
 mAfedri = Extension ('quisk.afedrinet.afedrinet_io',

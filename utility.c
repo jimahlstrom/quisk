@@ -321,3 +321,65 @@ PyObject * QuiskPrintf(char * format, ...)
         return NULL;
 }
 #endif
+
+#define MAX_CHANNELS	8
+int CircularBuffer(int channel, complex double * cSamples, int nRead, int nWrite)
+{
+// Initialize with cSamples NULL and nRead equal to the buffer delay in samples.
+// Read with nRead, write with nWrite. Only one can be non-zero.
+// Return the number of samples read or written.
+	static struct _channel {
+		complex double * cBuf;	// circular sample buffer; save samples until the buffer fills to nDelay
+		int sizeBuf;		// current size of cBuf in complex samples
+		int nDelay;		// number of samples needed to start reading the buffer
+		int nBuf;		// current number of complex samples in cBuf
+		int filling;		// if true, we are filling the buffer and not returning samples
+		int Windex;		// index of write
+		int Rindex;		// index of read
+	} Channels[MAX_CHANNELS] = {0};
+	struct _channel * ptChannel = Channels + channel;
+	int i, num;
+
+	if ( ! cSamples) {	// initialize
+		ptChannel->nDelay = nRead;
+		ptChannel->sizeBuf = nRead * 8;
+		ptChannel->cBuf = (complex double *)realloc(ptChannel->cBuf, ptChannel->sizeBuf * sizeof(complex double));
+		ptChannel->filling = 1;
+		ptChannel->Windex = 0;
+		ptChannel->Rindex = 0;
+		ptChannel->nBuf = 0;
+		return 0;
+	}
+	if ( ! ptChannel->cBuf)
+		return 0;
+	num = 0;	// number of samples read or written
+	if (nWrite > 0) {		// Copy samples from cSamples to cBuf
+		for (i = 0; i < nWrite && ptChannel->nBuf < ptChannel->sizeBuf; i++) {
+			ptChannel->cBuf[ptChannel->Windex++] = cSamples[i];
+			if (ptChannel->Windex >= ptChannel->sizeBuf)
+				ptChannel->Windex = 0;
+			ptChannel->nBuf++;
+			num++;
+		}
+		if (ptChannel->nBuf >= ptChannel->nDelay)
+			ptChannel->filling = 0;
+	}
+	else if (nRead > 0) {
+		if (ptChannel->filling) {	// return zero-valued samples
+			for (num = 0; num < nRead; num++)
+				cSamples[num] = 0;
+		}
+		else {		// Copy samples from cBuf to cSamples
+			for (i = 0; i < nRead && ptChannel->nBuf > 0; i++) {
+				cSamples[i] = ptChannel->cBuf[ptChannel->Rindex++];
+				if (ptChannel->Rindex >= ptChannel->sizeBuf)
+					ptChannel->Rindex = 0;
+				ptChannel->nBuf--;
+				num++;
+			}
+			if (ptChannel->nBuf <= 0)
+				ptChannel->filling = 1;
+		}
+	}
+	return num;
+}

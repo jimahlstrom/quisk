@@ -4204,6 +4204,9 @@ class RadioRemote(BaseWindow):		# The Remote page in the second-level notebook f
           self.NextRow()
           self.col = 2
       if not heading:
+        heading = self.AddTextHeading("TCI", text,
+'Rig control commands and digital sample streams are sent to multiple clients using the TCI protocol.')
+      if not heading:
         heading = self.AddTextHeading("Hamlib Rig 2", text,
 'Rig control commands using "Hamlib Rig 2" are sent to a Quisk TCP port from multiple clients.')
       if not heading:

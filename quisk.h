@@ -260,6 +260,13 @@ extern PyObject * quisk_stop_remote_radio_remote_sound(PyObject * self, PyObject
 extern int receive_graph_data(double * fft_avg);
 extern void send_graph_data(double * fft_avg, int fft_size, double zoom, double deltaf, int fft_sample_rate, double scale);
 
+// TCI server
+PyObject * quisk_tci_set_params(PyObject * self, PyObject * args, PyObject * keywds);
+PyObject * quisk_tci_get_params(PyObject * self, PyObject * args);
+void tci_send_audio(complex double * cSamples, int nSamples);
+int tci_get_mic(complex double * cSamples, int mic_count);
+extern uint64_t tci_tx_audio_client;	// This is ws_cli_conn_t defined in ws.h.
+
 void QuiskWavClose(struct QuiskWav *);
 int QuiskWavWriteOpen(struct QuiskWav *, char *, short, short, short, int, double);
 void QuiskWavWriteC(struct QuiskWav *, complex double *, int);
@@ -394,6 +401,7 @@ int quisk_play_sidetone(struct sound_dev *);
 void quisk_set_play_state(void);
 void quisk_poll_hardware_key(void);
 void PreDistort(complex double * amp_in_samples, complex double * amp_out_samples, int nSamples, complex double * tx_samples, int num_tx);
+int CircularBuffer(int channel, complex double * cSamples, int nRead, int nWrite);
 
 // Driver function definitions=================================================
 int  quisk_read_alsa(struct sound_dev *, complex double *);

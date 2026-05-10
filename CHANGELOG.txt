@@ -1,3 +1,7 @@
+Quisk Version 4.2.51  May 2026
+==============================
+This version can use the TCI protocol to connect to WSJT-X. Please see Digital Modes in the documentation.
+
 Quisk Version 4.2.50  December 2025
 ===================================
 This is a quick fix for a bug in 4.2.49 that results in the repeated message
