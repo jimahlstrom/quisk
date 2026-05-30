@@ -1,2 +1,2 @@
-#Quisk version 4.2.51
+#Quisk version 4.2.52
 from .quisk import main

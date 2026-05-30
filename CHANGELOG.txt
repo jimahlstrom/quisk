@@ -1,3 +1,8 @@
+Quisk Version 4.2.52  May 2026
+==============================
+This is a fix for various TCI bugs. Please test with WSJT-X and let me know if all problems are solved.
+It is unlikely that other digital software will connect without problems, but please test and let me know.
+
 Quisk Version 4.2.51  May 2026
 ==============================
 This version can use the TCI protocol to connect to WSJT-X. Please see Digital Modes in the documentation.

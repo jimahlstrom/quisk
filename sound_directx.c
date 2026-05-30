@@ -199,14 +199,14 @@ static int quisk_open_capture(struct sound_dev * dev)
 	DirectSoundCaptureEnumerate((LPDSENUMCALLBACK)DsEnumCapture, dev);
 	if (errFound != DS_OK) {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound capture device name %s not found", dev->name);
+			"DirectSound capture device name %.200s not found", dev->name);
 			if (quisk_sound_state.verbose_sound)
 				QuiskPrintf("%s\n", dev->dev_errmsg);
 		return 1;
 	}
 	if (errOpen != DS_OK) {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound capture device %s open failed", dev->name);
+			"DirectSound capture device %.200s open failed", dev->name);
 			if (quisk_sound_state.verbose_sound)
 				QuiskPrintf("%s\n", dev->dev_errmsg);
 		return 1;
@@ -226,7 +226,7 @@ static int quisk_open_capture(struct sound_dev * dev)
 	}
 	else {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound capture device %s buffer create failed (0x%lX)", dev->name, hr);
+			"DirectSound capture device %.200s buffer create failed (0x%lX)", dev->name, hr);
 		return 1;
 	}
 	ptBuf = (LPDIRECTSOUNDCAPTUREBUFFER)dev->buffer;
@@ -235,7 +235,7 @@ static int quisk_open_capture(struct sound_dev * dev)
 		if (quisk_sound_state.verbose_sound)
 			QuiskPrintf("Capture start error 0x%lX", hr);
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound capture device %s capture start failed", dev->name);
+			"DirectSound capture device %.200s capture start failed", dev->name);
 		return 1;
 	}
 	if (quisk_sound_state.verbose_sound) {
@@ -270,18 +270,18 @@ static int quisk_open_playback(struct sound_dev * dev)
 	DirectSoundEnumerate((LPDSENUMCALLBACK)DsEnumPlay, dev);
 	if (errFound != DS_OK) {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound play device name %s not found", dev->name);
+			"DirectSound play device name %.200s not found", dev->name);
 		return 1;
 	}
 	if (errOpen != DS_OK) {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound play device %s open failed", dev->name);
+			"DirectSound play device %.200s open failed", dev->name);
 		return 1;
 	}
 	hr = IDirectSound_SetCooperativeLevel ((LPDIRECTSOUND8)dev->handle, quisk_mainwin_handle, DSSCL_PRIORITY);
 	if (hr != DS_OK) {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound play device %s cooperative level failed", dev->name);
+			"DirectSound play device %.200s cooperative level failed", dev->name);
 		return 1;
 	}
 	dev->sample_bytes = 4;
@@ -299,7 +299,7 @@ static int quisk_open_playback(struct sound_dev * dev)
 	}
 	else {
 		snprintf (dev->dev_errmsg, QUISK_SC_SIZE,
-			"DirectSound play device %s buffer create failed (0x%X)", dev->name, (unsigned int)hr);
+			"DirectSound play device %.180s buffer create failed (0x%X)", dev->name, (unsigned int)hr);
 		return 1;
 	}
 	if (quisk_sound_state.verbose_sound) {

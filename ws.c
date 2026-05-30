@@ -2030,7 +2030,7 @@ int ws_socket(struct ws_server *ws_srv)
 		panic("Unable to listen!\n");
 
 	/* Wait for incoming connections. */
-	printf("Waiting for incoming connections...\n");
+	//printf("Waiting for incoming connections...\n");
 	memset(client_socks, -1, sizeof(client_socks));
 
 	/* Accept connections. */
