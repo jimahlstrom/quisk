@@ -1,6 +1,7 @@
 #include <Python.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include <complex.h>	// Use native C99 complex type for fftw3
 #include "quisk.h"
 #include "filter.h"

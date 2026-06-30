@@ -4030,7 +4030,9 @@ class App(wx.App):
     self.file_name_play_cq = ''
     self.midiControls = {}		# Control object and associated function for Midi control name
     self.tci_vfo = 0
-    self.tci_started = False
+    self.tci_dds = 0
+    self.tci_modulation = ''
+    self.tci_split_enable = 0
     # get the screen size - thanks to Lucian Langa
     x, y, self.screen_width, self.screen_height = wx.Display().GetGeometry()	# Using display index 0
     self.Bind(wx.EVT_IDLE, self.OnIdle)
@@ -4361,12 +4363,12 @@ class App(wx.App):
       value = getattr(conf, "pulse_audio_verbose_output")
       QS.tci_set_params(verbose=value)
       QS.tci_set_params(start=1);
-      self.tci_started = True
-      QS.tci_set_params(tci_dds=self.VFO)
-      QS.tci_set_params(tci_if=self.txFreq)
-      self.tci_vfo = self.txFreq + self.VFO
+      self.tci_dds = self.VFO
+      QS.tci_set_params(tci_dds=self.tci_dds)
+      self.tci_vfo = self.rxFreq + self.VFO
       QS.tci_set_params(tci_vfo=self.tci_vfo)
-      QS.tci_set_params(tci_modulation=self.mode)
+      self.tci_modulation = self.mode
+      QS.tci_set_params(tci_modulation=self.tci_modulation)
       QS.tci_set_params(tci_trx=0)
       QS.tci_set_params(tci_split_enable=0)
     return True
@@ -4693,6 +4695,8 @@ class App(wx.App):
     if msg:
       print(msg, end='')
     QS.close_key()
+    if QS.tci_get_params("tci_clients_count") > 0:
+      QS.tci_set_params(close=1)
     QS.set_file_name(record_button=0)	# Turn off file recording
     time.sleep(0.1)
     if self.sound_thread:
@@ -5782,7 +5786,6 @@ class App(wx.App):
       QS.set_sidetone(self.sidetone_volume, self.sidetone_0to1, self.ritFreq, conf.keyupDelay)
   def OnBtnSplit(self, event):	# Called when the Split check button is pressed
     self.split_rxtx = self.splitButton.GetValue()
-    QS.tci_set_params(tci_split_enable=self.split_rxtx)
     if self.split_rxtx:
       if self.split_offset == 0:
         if self.mode in ("CWL", "CWU"):
@@ -5796,7 +5799,7 @@ class App(wx.App):
       QS.set_split_rxtx(0)
       self.split_offset = self.txFreq - self.rxFreq
       self.txFreq = self.rxFreq
-      self.ChangeHwFrequency(self.txFreq, self.VFO, 'OnSplit', event=event)
+      self.ChangeHwFrequency(self.txFreq, self.VFO, 'OnSplit', event=event, rx_freq=self.rxFreq)
     self.screen.SetTxFreq(self.txFreq, self.rxFreq)
   def OnMenuSplitPlay1(self, event):
     self.split_rxtx_play = 1
@@ -6168,7 +6171,6 @@ class App(wx.App):
       self.ChangeRxTxFrequency(self.rxFreq + delta + self.VFO, self.txFreq + delta + self.VFO)
     Hardware.ChangeMode(mode)
     self.mode = mode
-    QS.tci_set_params(tci_modulation=mode)
     self.MakeFilterButtons(self.Mode2Filters(mode))
     QS.set_rx_mode(Mode2Index.get(mode, 3))
     if mode == 'CWL':
@@ -6829,22 +6831,56 @@ class App(wx.App):
       if self.timer - self.clip_time0 > 1.0:
         self.clip_time0 = 0
         self.freqDisplay.Clip(0)
+    if QS.tci_get_params("tci_clients_count") > 0:
+      # These are change requests from TCI clients. All must be echoed with the new value from Quisk.
+      # modulation
+      mode = QS.tci_get_params("tci_modulation")
+      if mode is not None:	# TCI set new modulation
+        self.modeButns.SetLabel(mode, True)
+        self.tci_modulation = self.mode
+        QS.tci_set_params(tci_modulation=self.tci_modulation)
+      # split
+      split = QS.tci_get_params("tci_split_enable")
+      if split is not None:	# TCI set split_enable
+        self.splitButton.SetValue(split, True)
+        self.tci_split_enable = self.split_rxtx
+        QS.tci_set_params(tci_split_enable=self.tci_split_enable)
+      # tci dds == self.VFO
+      tci_dds = QS.tci_get_params("tci_dds")
+      if tci_dds is not None:
+        self.ChangeHwFrequency(0, tci_dds, 'TCIrequest')
+        self.tci_dds = self.VFO
+        QS.tci_set_params(tci_dds=self.tci_dds)
+      # tci_vfo == self.VFO + self.rxFreq
+      tci_vfo = QS.tci_get_params("tci_vfo")
+      if tci_vfo is not None:
+        self.ChangeRxTxFrequency(tci_vfo, None)
+        self.tci_vfo = self.VFO + self.rxFreq
+        QS.tci_set_params(tci_vfo=self.tci_vfo)
+      # tci_trx handled elsewhere
     if self.timer - self.heart_time0 > 0.10:	# call hardware to perform background tasks:
       self.heart_time0 = self.timer
       Hardware.HeartBeat()
-      if self.tci_started:
-        if self.tci_vfo != self.txFreq + self.VFO:	# limit the speed of frequency updates
-          self.tci_vfo = self.txFreq + self.VFO
+      if QS.tci_get_params("tci_clients_count") > 0:	# limit the speed of frequency updates
+        # these are changes made in Quisk that must be broadcast to all clients.
+        # modulation
+        if self.tci_modulation != self.mode:
+          self.tci_modulation = self.mode
+          QS.tci_set_params(tci_modulation=self.tci_modulation)
+        # split
+        if self.tci_split_enable != self.split_rxtx:
+          self.tci_split_enable = self.split_rxtx
+          QS.tci_set_params(tci_split_enable=self.tci_split_enable)
+        # tci dds == self.VFO
+        if self.tci_dds != self.VFO:
+          self.tci_dds = self.VFO
+          QS.tci_set_params(tci_dds=self.tci_dds)
+        # tci_vfo == self.VFO + self.rxFreq
+        tci_vfo = self.VFO + self.rxFreq
+        if self.tci_vfo != tci_vfo:
+          self.tci_vfo = tci_vfo
           QS.tci_set_params(tci_vfo=self.tci_vfo)
-        freq = QS.tci_get_params("tci_vfo")
-        if freq is not None:	# TCI frequency
-          self.ChangeRxTxFrequency(freq, None)
-        mode = QS.tci_get_params("tci_modulation")
-        if mode is not None:	# TCI mode
-          self.modeButns.SetLabel(mode, True)
-        split = QS.tci_get_params("tci_split_enable")
-        if split is not None:	# TCI split_enable
-          self.splitButton.SetValue(split, True)
+        # tci_trx handled elsewhere
       if self.is_HermesLite2:
         self.tx_inhibit = QS.get_params('quisk_tx_inhibit')
       else:

@@ -297,11 +297,11 @@ static PyObject * open_device(PyObject * self, PyObject * args)
 
 
 	main_cleanup:
-	return PyString_FromString("ERROR");
+	return PyUnicode_FromString("ERROR");
 
 	exit_success:
 	
-	return PyString_FromString(buf128);
+	return PyUnicode_FromString(buf128);
 	
 	
 }

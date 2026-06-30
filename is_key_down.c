@@ -1,5 +1,6 @@
 #include <Python.h>	// used by quisk.h
 #include <complex.h>	// Used by quisk.h
+#include <string.h>
 #include "quisk.h"
 
 // This module provides methods to access the state of the key.

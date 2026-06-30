@@ -1,6 +1,8 @@
 /*
  * This module provides sound access for QUISK using the portaudio library.
 */
+#include <string.h>
+
 #ifdef QUISK_HAVE_PORTAUDIO
 
 #include <Python.h>
@@ -475,7 +477,7 @@ static int device_list(PyObject * py, int input)
                 // found one
                 if (py) {
                     snprintf(buf100, 100, "%s", info->name);
-					PyList_Append(py, PyString_FromString(buf100));
+					PyList_Append(py, PyUnicode_FromString(buf100));
                 } 
             }
         }

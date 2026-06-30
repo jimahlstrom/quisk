@@ -84,7 +84,7 @@ h3     {font-size:1.6rem;}
 <div class="contents">
 <h1>
 <a id="Welcome"></a>
-Welcome to QUISK (September 2025)
+Welcome to QUISK (June 2026)
 </h1>
 
 <p>
@@ -197,7 +197,7 @@ Quisk is free open source software written in Python and C. It is hosted on the 
 <br>
 <p>
 If you have Python 3 installed on your computer, just continue to use that version.
-<b>On Windows Quisk requires Python 3.8, 3.9, 3.10, 3.11, 3.12 or 3.13.</b>
+On Windows Quisk requires Python 3.8 or higher.
 If you want to install a more recent version of Python, uninstall the old version first.
 Running multiple versions of Python is possible but can be confusing and is not necessary.
 <b>A Quisk installation is needed for each version of Python you have. If you upgrade to a newer Python
@@ -208,8 +208,7 @@ you must re-install Quisk. But your Quisk settings will be preserved.</b>
 <p>
 Windows does not include Python, so you must first install a recent version of 64-bit Python 3.
 If you already have 64-bit Python 3 installed, just keep using it.
-<b>On Windows Quisk requires Python 3.8, 3.9, 3.10, 3.11, 3.12 or 3.13.</b>
-There may be newer versions of Python, but until support is added, use the versions listed above.
+On Windows Quisk requires Python 3.8 or higher.
 Python is available from <a href="http://www.python.org/">http://www.python.org</a>.
 There is an option to <b>Add Python to PATH</b>. You MUST select
 this option so that you can start python by just typing "python" instead of the whole path
@@ -383,6 +382,7 @@ You only clone github for the initial installation. To update Quisk, use pull fo
 <pre>
 cd ~/quisk
 git pull
+make clean
 make
 </pre>
 <br>

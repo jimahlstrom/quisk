@@ -32,6 +32,8 @@ with this:
 */
 
 #include <Python.h>
+#include <string.h>
+#include <stdio.h>
 
 void ** Quisk_API;		// array of pointers to functions and variables from module _quisk
 struct sound_conf * pt_quisk_sound_state;		// pointer to quisk_sound_state

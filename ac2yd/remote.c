@@ -9,6 +9,7 @@
 #include <Python.h>
 #include <complex.h>
 #include <math.h>
+#include <string.h>
 #include <sys/time.h>
 #include <time.h>
 #include <errno.h>

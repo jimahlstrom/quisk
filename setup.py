@@ -4,14 +4,8 @@ import os
 
 # This file is used to build the Linux and Mac versions of Quisk. Windows builds are not included.
 
-# You must define the version here.  A title string including
-# the version will be written to __init__.py and read by quisk.py.
-
-Version = '4.2.52'
-
-fp = open("__init__.py", "w")	# write title string
-fp.write("#Quisk version %s\n" % Version)
-fp.write("from .quisk import main\n")
+fp = open('__init__.py')		# Read in the version
+Version = fp.readline().strip()[15:]
 fp.close()
 
 sources = ['quisk.c', 'sound.c', 'is_key_down.c', 'microphone.c', 'utility.c',

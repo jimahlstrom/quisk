@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <complex.h>
 #include "quisk.h"

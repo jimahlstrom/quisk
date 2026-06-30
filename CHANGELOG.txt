@@ -1,3 +1,12 @@
+Quisk Version 4.2.53  June 2026
+===============================
+I added TCI support for Software Defined Connectors CW skimmer. Please test.
+
+This version of Quisk now works on Python 3.14 and higher. I changed to a new build system because
+the old one has been deprecated by Python. They no longer support running setup.py.
+The Linux version has a new makefile. The Windows version is installed by pip as usual.
+Please test.
+
 Quisk Version 4.2.52  May 2026
 ==============================
 This is a fix for various TCI bugs. Please test with WSJT-X and let me know if all problems are solved.

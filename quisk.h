@@ -29,6 +29,8 @@
 
 #define QUISK_CWKEY_DOWN	(quisk_hardware_cwkey || quisk_serial_key_down || quisk_midi_cwkey || quisk_remote_cwkey)
 
+#include <stdio.h>
+#include <stdlib.h>
 #ifdef MS_WINDOWS
 #define QUISK_SHUT_RD	SD_RECEIVE
 #define QUISK_SHUT_BOTH	SD_BOTH
@@ -264,6 +266,7 @@ extern void send_graph_data(double * fft_avg, int fft_size, double zoom, double 
 PyObject * quisk_tci_set_params(PyObject * self, PyObject * args, PyObject * keywds);
 PyObject * quisk_tci_get_params(PyObject * self, PyObject * args);
 void tci_send_audio(complex double * cSamples, int nSamples);
+void tci_send_iq(complex double * cSamples, int nSamples);
 int tci_get_mic(complex double * cSamples, int mic_count);
 extern uint64_t tci_tx_audio_client;	// This is ws_cli_conn_t defined in ws.h.
 

@@ -1,7 +1,9 @@
 // This module provides C access to the WDSP SDR library.
 
 #include <Python.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <complex.h>
 
 #define CLIP32			2147483647

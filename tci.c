@@ -2,36 +2,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include "ws.h"
 #include <pthread.h>
 #include <complex.h>
 #include <time.h>
 #include "quisk.h"
+#include "filter.h"
 
 #define TCI_STREAM_DATA_BYTES	16384
 #define TCI_RX_BUF_SIZE		1024
-#define TCI_COMMAND_SIZE	32
+#define TCI_COMMAND_SIZE	64
+#define BAD_TCI_IF		999999999
 
 static int verbose;	// non-zero for verbose log messages
 static int tci_port;
 
 // Implement the ExpertSDR2 Version 1.4 protocol:
-// The only sample rate is 48000. The Tx audio parameters are copied from the Rx audio stream.
+// The Tx audio parameters are copied from the Rx audio stream.
 // The only sample type is FLOAT32 type 3.
-// WSJT-X RX_AUDIO_STREAM must be two channels and Stream.length is the number of floats (not samples).
-// WSJT-X TX_AUDIO_STREAM always returns two channels and Stream.length is the number of floats (not samples).
-// WSJT-X TX_AUDIO_STREAM is twice as long, but the data is in the first half and garbage is in the second half.
-// WSJT-X TX_CHRONO Stream.length is the number of floats, and the returned TX_AUDIO_STREAM length is equal to it.
 // It is unclear whether Stream.length is the number of floats, or half that for two channels. And version 1.4 lacks Stream.channels.
 // The protocol name for TCI version 1.4 is "protocol:ESDR,1.4;" and the port is 40001.
 // The protocol name for TCI version 2.0 is "protocol:ExpertSDR3,2.0;" and the port is 50001.
 // The TCI modulations are: am, sam, dsb, lsb, usb, cw, nfm, wfm, spec, digl, digu, drm.
 
 // These are TCI parameters:
-//static int64_t quisk_dds;
-//static int quisk_if;
+static long long quisk_dds;
+static long long client_dds=-1;
 static long long quisk_vfo;
 static long long client_vfo=-1;
+static int quisk_if;
+static int client_if=BAD_TCI_IF;
 static int quisk_trx;
 static int client_trx=-1;
 static int quisk_split_enable;
@@ -79,6 +80,11 @@ struct ClientData {	// data for each client
 	int audio_stream_channels;
 	int audio_stream_samples;
 	int audio_stream_bytes_per_sample;
+	struct quisk_cHB45Filter HalfBand1;
+	struct quisk_cFilter filtDecim3;
+	struct quisk_cFilter filtDecim48to24;
+	int send_IQ_stream;
+	int IQ_stream_samplerate;
 } ;
 
 struct _Stream {
@@ -132,11 +138,11 @@ struct _StreamTypes StreamTypes[NUM_STREAM_TYPES] = {
 	{"lineout  ", 0}
 } ;
 
-static void PrintStream(const char * msg, size_t size)
+static void PrintStream(const char * msg, size_t size, int always)
 {
 	struct _Stream * pt = (struct _Stream *)msg;
 
-	if (time(NULL) - StreamTypes[pt->type].when > 5) {
+	if (always || time(NULL) - StreamTypes[pt->type].when > 5) {
 		StreamTypes[pt->type].when = time(NULL);
 		if (pt->type == TX_AUDIO_STREAM)
 			QuiskPrintf("TCI     Receiving %slength %5d:", StreamTypes[pt->type].name, (int)size);
@@ -164,7 +170,7 @@ static int sendframe_txt_bcast(uint16_t port, const char * msg)
 static size_t sendframe_bin(ws_cli_conn_t client, const char * msg, size_t size)
 {
 	if (verbose)
-		PrintStream(msg, size);
+		PrintStream(msg, size, 0);
 	return ws_sendframe_bin(client, msg, size);
 }
 
@@ -177,8 +183,12 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 
 	if (verbose)
 		QuiskPrintf("TCI     Received text      %s\n", ctx->msg_buf);
-	for (i = 0; ctx->msg_buf[i]; i++)
+		//QuiskPrintf("TCI     Received text      %s %20.6lf\n", ctx->msg_buf, QuiskTimeSec());
+	for (i = 0; ctx->msg_buf[i]; i++) {
+		char_buf[i] = ctx->msg_buf[i];		// make a copy of the command
 		ctx->msg_buf[i] = tolower(ctx->msg_buf[i]);
+	}
+	char_buf[i] = 0;
 	command = strtok_r(ctx->msg_buf, ":", &saveptr);
 	if (command == NULL)
 		return 0;
@@ -193,10 +203,19 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 			for (i = 0; i < tci_clients_count; i++) {
 				if (tci_clients_list[i] == client) {
 					ctx->send_Rx_audio_stream = 1;
+					memset(&ctx->HalfBand1,
+						0, sizeof(struct quisk_cHB45Filter));
+					quisk_filt_cInit(&ctx->filtDecim3,
+						quiskFilt144D3Coefs, sizeof(quiskFilt144D3Coefs)/sizeof(double));
+					quisk_filt_cInit(&ctx->filtDecim48to24,
+						quiskFilt48dec24Coefs, sizeof(quiskFilt48dec24Coefs)/sizeof(double));
+
 					break;
 				}
 			}
 			pthread_mutex_unlock(&clients_list_mutex);
+			sendframe_txt(client, char_buf);
+			return 0;
 		}
 		else if (strcmp(command, "audio_stop") == 0) {
 			pthread_mutex_lock(&clients_list_mutex);
@@ -207,19 +226,24 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 				}
 			}
 			pthread_mutex_unlock(&clients_list_mutex);
+			sendframe_txt(client, char_buf);
+			return 0;
 		}
 		else if (strcmp(command, "audio_stream_sample_type") == 0) {
 			if (strcmp(arg1, "float32") == 0) {
 				ctx->audio_stream_sample_type = TCI_FLOAT32;
 				ctx->audio_stream_bytes_per_sample = 4;
+				sendframe_txt(client, char_buf);
 			}
-			else {
-				return 0;
-			}
+			return 0;
 		}
 		else if (strcmp(command, "audio_samplerate") == 0) {
-			if (atoi(arg1) != 48000)
+			i = atoi(arg1);
+			if (i != 48000 && i != 24000 && i != 12000 && i != 8000)
 				return 0;
+			ctx->audio_stream_samplerate = i;
+			sendframe_txt(client, char_buf);
+			return 0;
 		}
 		else if (strcmp(command, "audio_stream_channels") == 0) {
 			if (strcmp(arg1, "1") == 0)
@@ -228,23 +252,74 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 				ctx->audio_stream_channels = 2;
 			else
 				return 0;
+			sendframe_txt(client, char_buf);
+			return 0;
 		}
 		else if (strcmp(command, "audio_stream_samples") == 0) {
 			return 0;	// do not send
 		}
 		break;
+	case 'd':
+		if (strcmp(command, "dds") == 0) {
+			if (arg2) {
+				client_dds = atoll(arg2);
+				// Echo comes from quisk_tci_set_params()
+			}
+			else {
+				snprintf(char_buf, TCI_COMMAND_SIZE, "dds:0,%lld;", quisk_dds);
+				sendframe_txt(client, char_buf);
+			}
+			return 0;
+		}
+		break;
 	case 'i':
-		if (strcmp(command, "iq_start") == 0)
-			return 0;	// do not send
-		else if (strcmp(command, "iq_stop") == 0)
-			return 0;	// do not send
-		else if (strcmp(command, "iq_samplerate") == 0)
-			return 0;	// do not send
+		if (strcmp(command, "iq_start") == 0) {
+			pthread_mutex_lock(&clients_list_mutex);
+			for (i = 0; i < tci_clients_count; i++) {
+				if (tci_clients_list[i] == client) {
+					ctx->send_IQ_stream = 1;
+					break;
+				}
+			}
+			pthread_mutex_unlock(&clients_list_mutex);
+			sendframe_txt(client, char_buf);
+			return 0;
+		}
+		else if (strcmp(command, "iq_stop") == 0) {
+			pthread_mutex_lock(&clients_list_mutex);
+			for (i = 0; i < tci_clients_count; i++) {
+				if (tci_clients_list[i] == client) {
+					ctx->send_IQ_stream = 0;
+					break;
+				}
+			}
+			pthread_mutex_unlock(&clients_list_mutex);
+			sendframe_txt(client, char_buf);
+			return 0;
+		}
+		else if (strcmp(command, "iq_samplerate") == 0) {
+			ctx->IQ_stream_samplerate = quisk_sound_state.sample_rate;
+			snprintf(char_buf, TCI_COMMAND_SIZE, "iq_samplerate:%d;", quisk_sound_state.sample_rate);
+			sendframe_txt(client, char_buf);
+			return 0;
+		}
+		else if (strcmp(command, "if") == 0) {
+			if (arg3) {
+				client_if = atoi(arg3);
+				// Echo comes from quisk_tci_set_params()	UNIMPLEMENTED
+			}
+			else {
+				snprintf(char_buf, TCI_COMMAND_SIZE, "if:0,0,%d;", quisk_if);
+				sendframe_txt(client, char_buf);
+			}
+			return 0;
+		}
 		break;
 	case 'm':
 		if (strcmp(command, "modulation") == 0) {
 			if (arg2) {
 				strncpy(client_modulation, arg2, TCI_COMMAND_SIZE - 1);
+				// Echo comes from quisk_tci_set_params()
 			}
 			else {
 				snprintf(char_buf, TCI_COMMAND_SIZE, "modulation:0,%.9s;", quisk_modulation);
@@ -260,6 +335,7 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 					client_split_enable = 1;
 				else
 					client_split_enable = 0;
+				// Echo comes from quisk_tci_set_params()
 			}
 			else {
 				if (quisk_split_enable)
@@ -291,6 +367,7 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 					client_trx = 0;
 					tci_tx_audio_client = 0;
 				}
+				// Echo comes from quisk_tci_set_params()
 			}
 			else {
 				if (quisk_trx)
@@ -308,6 +385,7 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 		if (strcmp(command, "vfo") == 0) {
 			if (arg3) {
 				client_vfo = atoll(arg3);
+				// Echo comes from quisk_tci_set_params()
 			}
 			else {
 				snprintf(char_buf, TCI_COMMAND_SIZE, "vfo:0,0,%lld;", quisk_vfo);
@@ -330,7 +408,9 @@ static void onopen(ws_cli_conn_t client)
 	ctx = malloc(sizeof(struct ClientData));
 	ctx->msg_length = 0;
 	ctx->send_Rx_audio_stream = 0;
+	ctx->send_IQ_stream = 0;
 	ctx->audio_stream_samplerate = 48000;
+	ctx->IQ_stream_samplerate = quisk_sound_state.sample_rate;
 	ctx->audio_stream_sample_type = TCI_FLOAT32;
 	ctx->audio_stream_channels = 2;
 	ctx->audio_stream_samples = 0;
@@ -348,7 +428,9 @@ static void onopen(ws_cli_conn_t client)
 
 	sendframe_txt(client, "protocol:ESDR,1.4;");
 	//sendframe_txt(client, "vfo_limits:30000,30000000;");  Not known due to transverters
-	//sendframe_txt(client, "if_limits:-48000,48000;");
+	int if_limit = quisk_sound_state.sample_rate / 2;
+	snprintf(command, TCI_COMMAND_SIZE, "if_limits:%d,%d;", - if_limit, if_limit);
+	sendframe_txt(client, command);
 	sendframe_txt(client, "trx_count:1;");
 	sendframe_txt(client, "channel_count:1;");
 	sendframe_txt(client, "device:QuiskSDR;");
@@ -358,10 +440,10 @@ static void onopen(ws_cli_conn_t client)
 
 	sendframe_txt(client, "start;");
 	sendframe_txt(client, "tx_enable:0,true;");
-	//snprintf(command, TCI_COMMAND_SIZE, "dds:0,%d;", quisk_dds);
-	//sendframe_txt(client, command);
-	//snprintf(command, TCI_COMMAND_SIZE, "if:0,0,%d;", quisk_if);
-	//sendframe_txt(client, command);
+	snprintf(command, TCI_COMMAND_SIZE, "dds:0,%lld;", quisk_dds);
+	sendframe_txt(client, command);
+	snprintf(command, TCI_COMMAND_SIZE, "if:0,0,%d;", quisk_if);
+	sendframe_txt(client, command);
 	snprintf(command, TCI_COMMAND_SIZE, "modulation:0,%.9s;", quisk_modulation);
 	sendframe_txt(client, command);
 	snprintf(command, TCI_COMMAND_SIZE, "vfo:0,0,%lld;", quisk_vfo);
@@ -471,7 +553,7 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 					break;
 				case TCI_FLOAT32:
 					// Version 1.4 does not return the number of channels. We assume two channels.
-					// pt->length is the number of floats in WSJT-X.
+					// pt->length is the number of floats
 					while (vpt < vpt_end && count < pt->length) {
 						re = *(float *)vpt;
 						vpt += sizeof(float);
@@ -499,7 +581,7 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 			}
 		}
 		if (verbose)
-			PrintStream((const char *)msg, size);
+			PrintStream((const char *)msg, size, 0);
 
 	}
 
@@ -529,11 +611,37 @@ static void tci_startup(void)
 	return;
 }
 
+static int decimate_audio_stream(complex double * cSamples, int nSamples, struct ClientData * ctx)
+{
+	switch(ctx->audio_stream_samplerate) {		// Starting audio rate is 48000
+		case 48000:
+			break;
+		case 24000:
+			nSamples = quisk_cDecimate(cSamples, nSamples, &ctx->filtDecim48to24, 2);
+			break;
+		case 12000:
+			nSamples = quisk_cDecim2HB45(cSamples, nSamples, &ctx->HalfBand1);
+			nSamples = quisk_cDecimate(cSamples, nSamples, &ctx->filtDecim48to24, 2);
+			break;
+		case 8000:
+			nSamples = quisk_cDecim2HB45(cSamples, nSamples, &ctx->HalfBand1);
+			nSamples = quisk_cDecimate(cSamples, nSamples, &ctx->filtDecim3, 3);
+			break;
+		default:
+			nSamples = 0;
+			break;
+	}
+	return nSamples;
+}
+
 void tci_send_audio(complex double * cSamples, int nSamples)	// called from the sound thread
 {
 	int i, n;
 	struct _Stream stream;
 	struct ClientData * ctx;
+	static complex double * cCopy = NULL;
+	static int cCopy_size = 0;
+	complex double * cAudio;
 
 	if (tci_clients_count <= 0)
 		return;
@@ -555,15 +663,29 @@ void tci_send_audio(complex double * cSamples, int nSamples)	// called from the 
 		int bytes_per_sample = ctx->audio_stream_bytes_per_sample;
 		void * vpt = &stream.data;
 		void * vpt_end = vpt + TCI_STREAM_DATA_BYTES;
+		if (ctx->audio_stream_samplerate != 48000) {	// decimation must not change cSamples
+			if (cCopy_size < nSamples) {
+				if (cCopy)
+					free(cCopy);
+				cCopy_size = nSamples * 2;
+				cCopy = (complex double *)malloc(cCopy_size * sizeof(complex double));
+			}
+			memcpy(cCopy, cSamples, nSamples * sizeof(complex double));
+			nSamples = decimate_audio_stream(cCopy, nSamples, ctx);
+			cAudio = cCopy;
+		}
+		else {
+			cAudio = cSamples;
+		}
 		switch (ctx->audio_stream_sample_type) {
 		case TCI_FLOAT32:
 			stream.length = 0;	// make a frame
 			for (i = 0; i < nSamples; i++) {
-				*(float *)vpt = (float)(creal(cSamples[i]) * (1.0 / 2147483648.0 / 2));
+				*(float *)vpt = (float)(creal(cAudio[i]) * (1.0 / 2147483648.0 / 2));
 				vpt += bytes_per_sample;
 				stream.length++;
 				if (two_channels) {
-					*(float *)vpt = (float)(cimag(cSamples[i]) * (1.0 / 2147483648.0 / 2));
+					*(float *)vpt = (float)(cimag(cAudio[i]) * (1.0 / 2147483648.0 / 2));
 					vpt += bytes_per_sample;
 					stream.length++;
 				}
@@ -571,10 +693,63 @@ void tci_send_audio(complex double * cSamples, int nSamples)	// called from the 
 					sendframe_bin(tci_clients_list[n], (const char *)&stream,
 						(16 * sizeof(uint32_t) + stream.length * bytes_per_sample));
 					stream.length = 0;
+					vpt = &stream.data;
 				}
 			}
 			break;
 		}
+	}
+	pthread_mutex_unlock(&clients_list_mutex);
+}
+
+void tci_send_iq(complex double * cSamples, int nSamples)	// called from the sound thread
+{
+	int i, n;
+	struct _Stream stream;
+	struct ClientData * ctx;
+
+	if (tci_clients_count <= 0)
+		return;
+
+	if (nSamples <= 0)
+		return;
+
+	pthread_mutex_lock(&clients_list_mutex);
+	for (n = 0; n < tci_clients_count; n++) {
+		ctx = ws_get_connection_context(tci_clients_list[n]);
+		if (ctx->send_IQ_stream == 0)
+			continue;
+		memset(&stream, 0, 16 * sizeof(uint32_t));
+		stream.sample_rate = ctx->IQ_stream_samplerate;
+		stream.format = ctx->audio_stream_sample_type;
+		stream.type = IQ_STREAM;
+		stream.channels = 2;
+		int bytes_per_sample = ctx->audio_stream_bytes_per_sample;
+		void * vpt = &stream.data;
+		void * vpt_end = vpt + TCI_STREAM_DATA_BYTES;
+		int original_length = nSamples;
+		switch (ctx->audio_stream_sample_type) {
+		case TCI_FLOAT32:
+			stream.length = 0;	// make a frame
+			for (i = 0; i < nSamples; i++) {
+				*(float *)vpt = (float)(creal(cSamples[i]) * (1.0 / 2147483648.0 / 2));
+				vpt += bytes_per_sample;
+				stream.length++;
+				*(float *)vpt = (float)(cimag(cSamples[i]) * (1.0 / 2147483648.0 / 2));
+				vpt += bytes_per_sample;
+				stream.length++;
+				if (vpt >= vpt_end || i == nSamples - 1) {
+					sendframe_bin(tci_clients_list[n], (const char *)&stream,
+						(16 * sizeof(uint32_t) + stream.length * bytes_per_sample));
+					original_length -= stream.length / 2;
+					stream.length = 0;
+					vpt = &stream.data;
+				}
+			}
+			break;
+		}
+		if (verbose && original_length != 0)
+			QuiskPrintf("Error in tci_send_iq: Samples remain %d\n", original_length);
 	}
 	pthread_mutex_unlock(&clients_list_mutex);
 }
@@ -608,16 +783,17 @@ int tci_get_mic(complex double * cSamples, int mic_count)	// called from the sou
 PyObject * quisk_tci_set_params(PyObject * self, PyObject * args, PyObject * keywds)	// called from the GUI thread
 {  /* Call with keyword arguments ONLY.
       Sent from Quisk when parameters change. Broadcast the change to clients.*/
-	static char * kwlist[] = {"start", "verbose", "tci_dds", "tci_if", "tci_vfo", "tci_trx", "tci_split_enable",
+	static char * kwlist[] = {"start", "close", "verbose", "tci_dds", "tci_if", "tci_vfo", "tci_trx", "tci_split_enable",
 		"tci_modulation", NULL} ;
 	long long new_vfo=-1;
 	long long new_dds=-1;
-	int start=-1, new_if=-1, new_trx=-1, new_split_enable=-1;
+	int start=-1, close=-1, new_trx=-1, new_split_enable=-1;
+	int new_if = BAD_TCI_IF;
 	char * mode=NULL;
 	char char_buf[TCI_COMMAND_SIZE];
 
-	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiLiLiis", kwlist,
-			&start, &verbose, &new_dds, &new_if, &new_vfo, &new_trx, &new_split_enable,
+	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiiLiLiis", kwlist,
+			&start, &close, &verbose, &new_dds, &new_if, &new_vfo, &new_trx, &new_split_enable,
 			&mode))
 		return NULL;
 	if (start == 1) {
@@ -627,6 +803,19 @@ PyObject * quisk_tci_set_params(PyObject * self, PyObject * args, PyObject * key
 	if (tci_started == 0) {
 		Py_INCREF (Py_None);
 		return Py_None;
+	}
+	if (close != -1) {
+		sendframe_txt_bcast(tci_port, "stop;");
+	}
+	if (new_dds != -1) {
+		quisk_dds = new_dds;
+		snprintf(char_buf, TCI_COMMAND_SIZE, "dds:0,%lld;", quisk_dds);
+		sendframe_txt_bcast(tci_port, char_buf);
+	}
+	if (new_if != BAD_TCI_IF) {
+		quisk_if = new_if;
+		snprintf(char_buf, TCI_COMMAND_SIZE, "if:0,0,%d;", quisk_if);
+		sendframe_txt_bcast(tci_port, char_buf);
 	}
 	if (new_vfo != -1) {
 		quisk_vfo = new_vfo;
@@ -683,12 +872,26 @@ PyObject * quisk_tci_get_params(PyObject * self, PyObject * args)	// called from
 
 	if (!PyArg_ParseTuple (args, "s", &name))
 		return NULL;
+
+	if (strcmp(name, "tci_clients_count") == 0)
+		return PyLong_FromLong(tci_clients_count);
+
 	if (tci_started == 0) {
 	}
 	else if (strcmp(name, "tci_vfo") == 0 && client_vfo >= 0) {
 		ll = client_vfo;
 		client_vfo = -1;
 		return PyLong_FromLongLong(ll);
+	}
+	else if (strcmp(name, "tci_dds") == 0 && client_dds >= 0) {
+		ll = client_dds;
+		client_dds = -1;
+		return PyLong_FromLongLong(ll);
+	}
+	else if (strcmp(name, "tci_if") == 0 && client_if != BAD_TCI_IF) {
+		ii = client_if;
+		client_if = BAD_TCI_IF;
+		return PyLong_FromLong(ii);
 	}
 	else if (strcmp(name, "tci_split_enable") == 0 && client_split_enable >= 0) {
 		ii = client_split_enable;
@@ -718,7 +921,7 @@ PyObject * quisk_tci_get_params(PyObject * self, PyObject * args)	// called from
 			strcpy(char_buf, "FM");
 		client_modulation[0] = 0;
 		if (char_buf[0])
-			return PyString_FromString(char_buf);
+			return PyUnicode_FromString(char_buf);
 	}
 	Py_INCREF (Py_None);
 	return Py_None;

@@ -7,6 +7,9 @@
  * Note that there is NO WARRANTY AT ALL.  USE AT YOUR OWN RISK!!
 
 */
+
+#include <string.h>
+
 #ifdef QUISK_HAVE_WASAPI
 
 #define UNICODE
@@ -1125,10 +1128,10 @@ PyObject * quisk_wasapi_sound_devices(PyObject * self, PyObject * args)		// Call
 		EXIT_ON_ERROR(hr)
 		// data items are (name, id, is_raw)
 		pytup = PyTuple_New(3);
+		PyTuple_SetItem(pytup, 0, PyUnicode_FromWideChar(varName.pwszVal, -1));
+		PyTuple_SetItem(pytup, 1, PyUnicode_FromWideChar(pwszID, -1));
+		PyTuple_SetItem(pytup, 2, PyInt_FromLong(1));
 		PyList_Append(pyplay, pytup);
-		PyTuple_SET_ITEM(pytup, 0, PyUnicode_FromWideChar(varName.pwszVal, -1));
-		PyTuple_SET_ITEM(pytup, 1, PyUnicode_FromWideChar(pwszID, -1));
-		PyTuple_SET_ITEM(pytup, 2, PyInt_FromLong(1));
 		CoTaskMemFree(pwszID);
 		pwszID = NULL;
 		PropVariantClear(&varName);
@@ -1155,10 +1158,10 @@ PyObject * quisk_wasapi_sound_devices(PyObject * self, PyObject * args)		// Call
 		EXIT_ON_ERROR(hr)
 		// data items are (name, id, is_raw)
 		pytup = PyTuple_New(3);
+		PyTuple_SetItem(pytup, 0, PyUnicode_FromWideChar(varName.pwszVal, -1));
+		PyTuple_SetItem(pytup, 1, PyUnicode_FromWideChar(pwszID, -1));
+		PyTuple_SetItem(pytup, 2, PyInt_FromLong(1));
 		PyList_Append(pycapt, pytup);
-		PyTuple_SET_ITEM(pytup, 0, PyUnicode_FromWideChar(varName.pwszVal, -1));
-		PyTuple_SET_ITEM(pytup, 1, PyUnicode_FromWideChar(pwszID, -1));
-		PyTuple_SET_ITEM(pytup, 2, PyInt_FromLong(1));
 		CoTaskMemFree(pwszID);
 		pwszID = NULL;
 		PropVariantClear(&varName);

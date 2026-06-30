@@ -3,6 +3,7 @@
 #ifdef MS_WINDOWS
 #include <Winsock2.h>
 #include <windows.h>
+#include <string.h>
 #else
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -105,7 +106,7 @@ static PyObject * open_rx_udp(const char * ip, int port)
 	wVersionRequested = MAKEWORD(2, 2);
 	if (WSAStartup(wVersionRequested, &wsaData) != 0) {
 		sprintf(buf, "Failed to initialize Winsock (WSAStartup)");
-		return PyString_FromString(buf);
+		return PyUnicode_FromString(buf);
 	}
 #endif
 //	quisk_using_udp = 1;
@@ -145,7 +146,7 @@ static PyObject * open_rx_udp(const char * ip, int port)
 	else {
 		sprintf(buf, "Failed to open socket");
 	}
-	return PyString_FromString(buf);
+	return PyUnicode_FromString(buf);
 }
 
 static PyObject * close_rx_udp(PyObject * self, PyObject * args)
@@ -343,7 +344,7 @@ static PyObject * open_samples(PyObject * self, PyObject * args)
 	quisk_sample_source(NULL, NULL, &afedri_read_rx_udp);
 //////////////
 	return open_rx_udp(ip, port);		// AFEDRI specific
-//	return PyString_FromString(buf);		// return a string message
+//	return PyUnicode_FromString(buf);		// return a string message
 }
 
 // Miscellaneous functions needed by the SDR-IQ; called from the GUI thread as

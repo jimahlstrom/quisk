@@ -34,6 +34,8 @@
  * 2020 Apr by N2ADR Changes in printf's
 */
 
+#include <string.h>
+
 #ifdef QUISK_HAVE_PULSEAUDIO
 
 #include <Python.h>
@@ -1030,20 +1032,20 @@ static void source_sink(const char * name, const char * descr, pa_proplist * pro
 	PyObject * pytup;
 
 	pytup = PyTuple_New(3);
-	PyList_Append(pylist, pytup);
-	PyTuple_SET_ITEM(pytup, 0, PyString_FromString(name));
-	PyTuple_SET_ITEM(pytup, 1, PyString_FromString(descr));
+	PyTuple_SetItem(pytup, 0, PyUnicode_FromString(name));
+	PyTuple_SetItem(pytup, 1, PyUnicode_FromString(descr));
 	value = pa_proplist_gets(props, "device.api");
     
 	if (value && ! strcmp(value, "alsa")) {
 		snprintf(buf300, 300, "%s %s (hw:%s,%s)", pa_proplist_gets(props, "alsa.card_name"), pa_proplist_gets(props, "alsa.name"),
 			 pa_proplist_gets(props, "alsa.card"), pa_proplist_gets(props, "alsa.device"));
 
-		PyTuple_SET_ITEM(pytup, 2, PyString_FromString(buf300));
+		PyTuple_SetItem(pytup, 2, PyUnicode_FromString(buf300));
 	}
 	else {
-		PyTuple_SET_ITEM(pytup, 2, PyString_FromString(""));
+		PyTuple_SetItem(pytup, 2, PyUnicode_FromString(""));
 	}
+	PyList_Append(pylist, pytup);
 }
 
 
@@ -1074,7 +1076,7 @@ static void index_callback(pa_context *c, uint32_t idx, void *userdata) {
     //printf("%u\n", idx);
 }
 
-PyObject * quisk_pulseaudio_sound_devices(PyObject * self, PyObject * args)
+PyObject * quisk_pulseaudio_sound_devices(PyObject * self, PyObject * args)	// Called from the GUI thread
 {	// Return a list of PulseAudio device names [pycapt, pyplay]
 	PyObject * pylist, * pycapt, * pyplay;
 	pa_mainloop *pa_names_ml;

@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #endif
 #include <complex.h>
+#include <string.h>
 #include "quisk.h"
 
 // Access to config file attributes.
@@ -71,40 +72,27 @@ double QuiskGetConfigDouble(const char * name, double deflt)
 
 char * QuiskGetConfigString(const char * name, char * deflt)
 {  // Return the UTF-8 configuration string. Return deflt for failure.
-  char * res;
-  PyObject * attr;
-#if PY_MAJOR_VERSION < 3
-  static char retbuf[QUISK_SC_SIZE];
-#endif
+	Py_ssize_t size;
 
-  if (!quisk_pyConfig || PyErr_Occurred())
-    return deflt;
-  attr = PyObject_GetAttrString(quisk_pyConfig, name);
-  if (attr) {
-#if PY_MAJOR_VERSION >= 3
-    res = (char *)PyUnicode_AsUTF8(attr);
-#else
-    if (PyUnicode_Check(attr)) {
-      PyObject * pystr = PyUnicode_AsUTF8String(attr);
-      strMcpy(retbuf, PyString_AsString(pystr), QUISK_SC_SIZE);
-      retbuf[QUISK_SC_SIZE - 1] = 0;
-      res = retbuf;
-      Py_DECREF(pystr);
-    }
-    else {
-      res = PyString_AsString(attr);
-    }
-#endif
-    Py_DECREF(attr);
-    if (res)
-      return res;		// success
-    else
-      PyErr_Clear();
-  }
-  else {
-    PyErr_Clear();
-  }
-  return deflt;		// failure
+	if (!quisk_pyConfig || PyErr_Occurred())
+		return deflt;		// failure
+	PyObject * attr = PyObject_GetAttrString(quisk_pyConfig, name);
+	if ( ! attr) {
+		PyErr_Clear();
+		return deflt;		// failure
+	}
+	if ( ! PyUnicode_Check(attr)) {
+		Py_DECREF(attr);
+		return deflt;		// failure
+	}
+	const char * utf8_str = PyUnicode_AsUTF8AndSize(attr, &size);
+	if ( ! utf8_str) {
+		Py_DECREF(attr);
+		PyErr_Clear();
+		return deflt;		// failure
+	}
+	Py_DECREF(attr);
+	return (char *)utf8_str;
 }
 
 double QuiskTimeSec(void)

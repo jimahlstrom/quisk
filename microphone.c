@@ -3,6 +3,7 @@
 #include <math.h>
 #include <sys/time.h>
 #include <complex.h>
+#include <string.h>
 #include <fftw3.h>
 #include "quisk.h"
 #include <sys/types.h>

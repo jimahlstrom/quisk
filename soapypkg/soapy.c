@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <complex.h>
+#include <string.h>
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
 #include <SoapySDR/Version.h>
@@ -223,7 +224,7 @@ static PyObject * open_device(PyObject * self, PyObject * args)
 	else {
 		snprintf(buf128, 128, "SoapySDRDevice_make fail: %s", SoapySDRDevice_lastError());
 	}
-	return PyString_FromString(buf128);
+	return PyUnicode_FromString(buf128);
 }
 
 static void get_direc_len(const char * name, int * direction, int * length)
@@ -254,7 +255,7 @@ static PyObject * get_device_list(PyObject * self, PyObject * args)	// Called fr
 	for (i = 0; i < length; i++) {
 		dict = PyDict_New();
 		for (j = 0; j < results[i].size; j++)
-			PyDict_SetItemString(dict, results[i].keys[j], PyString_FromString(results[i].vals[j]));
+			PyDict_SetItemString(dict, results[i].keys[j], PyUnicode_FromString(results[i].vals[j]));
 		PyList_Append(devices, dict);
 		Py_DECREF(dict);
 	}
@@ -329,7 +330,7 @@ static PyObject * set_parameter(PyObject * self, PyObject * args)	// Called from
 		}
 	}
 	if (msg200[0])
-		return PyString_FromString(msg200);
+		return PyUnicode_FromString(msg200);
 	Py_INCREF (Py_None);
 	return Py_None;
 }
@@ -377,7 +378,7 @@ static PyObject * get_parameter(PyObject * self, PyObject * args)	// Called from
 		pylist = PyList_New(0);
 		names = SoapySDRDevice_listAntennas(sdev, direction, 0, &len_list);
 		for (i = 0; i < len_list; i++) {
-			pyobj = PyString_FromString(names[i]);
+			pyobj = PyUnicode_FromString(names[i]);
 			PyList_Append(pylist, pyobj);
 			Py_DECREF(pyobj);
 		}
@@ -440,7 +441,7 @@ static PyObject * get_parameter(PyObject * self, PyObject * args)	// Called from
 		pylist = PyList_New(0);
 		names = SoapySDRDevice_listGains(sdev, direction, 0, &len_list);
 		for (i = 0; i < len_list; i++) {
-			pyobj = PyString_FromString(names[i]);
+			pyobj = PyUnicode_FromString(names[i]);
 			PyList_Append(pylist, pyobj);
 			Py_DECREF(pyobj);
 		}
@@ -450,7 +451,7 @@ static PyObject * get_parameter(PyObject * self, PyObject * args)	// Called from
 	else if ( ! strncmp(name, "soapy_listGainsValues", length)) {
 		pylist = PyList_New(0);
 		pylst2 = PyList_New(0);		// First element is the total gain
-		pyobj = PyString_FromString("total");
+		pyobj = PyUnicode_FromString("total");
 		PyList_Append(pylst2, pyobj);
 		Py_DECREF(pyobj);
 		range = SoapySDRDevice_getGainRange(sdev, direction, 0);
@@ -460,7 +461,7 @@ static PyObject * get_parameter(PyObject * self, PyObject * args)	// Called from
 		names = SoapySDRDevice_listGains(sdev, direction, 0, &len_list);
 		for (i = 0; i < len_list; i++) {
 			pylst2 = PyList_New(0);
-			pyobj = PyString_FromString(names[i]);
+			pyobj = PyUnicode_FromString(names[i]);
 			PyList_Append(pylst2, pyobj);
 			Py_DECREF(pyobj);
 			range = SoapySDRDevice_getGainElementRange(sdev, direction, 0, names[i]);

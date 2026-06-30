@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <complex.h>	// Use native C99 complex type for fftw3
+#include <string.h>
 #include <fftw3.h>
 #include <sys/types.h>
 #include <stdbool.h>
@@ -4027,7 +4028,7 @@ static PyObject * open_rx_udp(PyObject * self, PyObject * args)
 	wVersionRequested = MAKEWORD(2, 2);
 	if (WSAStartup(wVersionRequested, &wsaData) != 0) {
 		sprintf(buf, "Failed to initialize Winsock (WSAStartup)");
-		return PyString_FromString(buf);
+		return PyUnicode_FromString(buf);
 	}
 	else {
 		cleanupWSA = 1;
@@ -4076,7 +4077,7 @@ static PyObject * open_rx_udp(PyObject * self, PyObject * args)
 	else {
 		sprintf(buf, "Failed to open socket");
 	}
-	return PyString_FromString(buf);
+	return PyUnicode_FromString(buf);
 }
 
 static PyObject * open_sound(PyObject * self, PyObject * args)
@@ -4290,7 +4291,7 @@ static PyObject * mixer_set(PyObject * self, PyObject * args)
 		return NULL;
 
 	quisk_alsa_mixer_set(card_name, numid, value, err_msg, QUISK_SC_SIZE);
-	return PyString_FromString(err_msg);
+	return PyUnicode_FromString(err_msg);
 }
 
 static PyObject * pc_to_hermes(PyObject * self, PyObject * args)
@@ -4493,12 +4494,12 @@ static PyObject * ip_interfaces(PyObject * self, PyObject * args)
 				baddr |= ~netmask;
 			tup = PyTuple_New(4);
 			if (name == NULL)
-				PyTuple_SetItem(tup, 0, PyString_FromString("unnamed"));
+				PyTuple_SetItem(tup, 0, PyUnicode_FromString("unnamed"));
 			else
-				PyTuple_SetItem(tup, 0, PyString_FromString(name));
-			PyTuple_SetItem(tup, 1, PyString_FromString(Win_NtoA(ipAddr)));
-			PyTuple_SetItem(tup, 2, PyString_FromString(Win_NtoA(netmask)));
-			PyTuple_SetItem(tup, 3, PyString_FromString(Win_NtoA(baddr)));
+				PyTuple_SetItem(tup, 0, PyUnicode_FromString(name));
+			PyTuple_SetItem(tup, 1, PyUnicode_FromString(Win_NtoA(ipAddr)));
+			PyTuple_SetItem(tup, 2, PyUnicode_FromString(Win_NtoA(netmask)));
+			PyTuple_SetItem(tup, 3, PyUnicode_FromString(Win_NtoA(baddr)));
 			PyList_Append(pylist, tup);
 			Py_DECREF(tup);
 		}
@@ -4517,10 +4518,10 @@ static PyObject * ip_interfaces(PyObject * self, PyObject * args)
 		while(p) {
 			if ((p->ifa_addr) && p->ifa_addr->sa_family == AF_INET) {
 				tup = PyTuple_New(4);
-				PyTuple_SetItem(tup, 0, PyString_FromString(p->ifa_name));
-				PyTuple_SetItem(tup, 1, PyString_FromString(Lin_NtoA(p->ifa_addr)));
-				PyTuple_SetItem(tup, 2, PyString_FromString(Lin_NtoA(p->ifa_netmask)));
-				PyTuple_SetItem(tup, 3, PyString_FromString(Lin_NtoA(p->ifa_broadaddr)));
+				PyTuple_SetItem(tup, 0, PyUnicode_FromString(p->ifa_name));
+				PyTuple_SetItem(tup, 1, PyUnicode_FromString(Lin_NtoA(p->ifa_addr)));
+				PyTuple_SetItem(tup, 2, PyUnicode_FromString(Lin_NtoA(p->ifa_netmask)));
+				PyTuple_SetItem(tup, 3, PyUnicode_FromString(Lin_NtoA(p->ifa_broadaddr)));
 				PyList_Append(pylist, tup);
 				Py_DECREF(tup);
 			}
@@ -5660,7 +5661,7 @@ static PyObject * Xdft(PyObject * pyseq, int inverse, int window)
 	static fftw_complex * samples;		// complex data for fft
 	static fftw_plan planF, planB;		// fft plan for fftW
 	static double * fft_window;			// window function
-	Py_complex pycx;					// Python C complex value
+	complex double pycx;
 
 	if (PySequence_Check(pyseq) != 1) {
 		PyErr_SetString (QuiskError, "DFT input data is not a sequence");
@@ -5695,22 +5696,20 @@ static PyObject * Xdft(PyObject * pyseq, int inverse, int window)
 	for (i = 0; i < size; i++) {
 		obj = PySequence_GetItem(pyseq, j);
 		if (PyComplex_Check(obj)) {
-			pycx = PyComplex_AsCComplex(obj);
+			pycx = PyComplex_RealAsDouble(obj) + I * PyComplex_ImagAsDouble(obj);
 		}
 		else if (PyFloat_Check(obj)) {
-			pycx.real = PyFloat_AsDouble(obj);
-			pycx.imag = 0;
+			pycx = PyFloat_AsDouble(obj);
 		}
 		else if (PyInt_Check(obj)) {
-			pycx.real = PyInt_AsLong(obj);
-			pycx.imag = 0;
+			pycx = PyInt_AsLong(obj);
 		}
 		else {
 			Py_XDECREF(obj);
 			PyErr_SetString (QuiskError, "DFT input data is not a complex/float/int number");
 			return NULL;
 		}
-		samples[i] = pycx.real + I * pycx.imag;
+		samples[i] = pycx;
 		if (++j >= size)
 			j = 0;
 		Py_XDECREF(obj);
@@ -5736,9 +5735,7 @@ static PyObject * Xdft(PyObject * pyseq, int inverse, int window)
 	pyseq = PyList_New(fft_size);
 	j = (size - 1) / 2;		// zero frequency in input
 	for (i = 0; i < fft_size; i++) {
-		pycx.real = creal(samples[i]);
-		pycx.imag = cimag(samples[i]);
-		PyList_SetItem(pyseq, j, PyComplex_FromCComplex(pycx));
+		PyList_SetItem(pyseq, j, PyComplex_FromDoubles(creal(samples[i]), cimag(samples[i])));
 		if (++j >= size)
 			j = 0;
 	}

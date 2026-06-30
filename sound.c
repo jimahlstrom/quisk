@@ -4,6 +4,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <complex.h>
+#include <string.h>
 #include <math.h>
 #include <sys/time.h>
 #include <time.h>
@@ -986,6 +987,8 @@ int quisk_read_sound(void)	// Called from sound thread
 	// Perhaps replace the samples with samples from a file
 	if (quisk_record_state == FILE_PLAY_SAMPLES)
 		quisk_play_samples(cSamples, nSamples);
+	// Send radio IQ samples to TCI
+	tci_send_iq(cSamples, nSamples);
 #if ! DEBUG_MIC
 	nSamples = quisk_process_samples(cSamples, nSamples);
 #endif

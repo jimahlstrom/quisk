@@ -1,3 +1,5 @@
+#include <string.h>
+
 #ifdef QUISK_HAVE_DIRECTX
 
 #include <Python.h>
@@ -55,14 +57,7 @@ static int match_name(LPCTSTR lpszDesc, const char * name)
 		Py_DECREF(py_unicode);
 		return 0;
 	}
-#if PY_MAJOR_VERSION >= 3
-	if (PyUnicode_READY(py_unicode) == 0)
-		length = PyUnicode_GET_LENGTH(py_unicode);
-	else
-		length = 0;
-#else
-	length = PyUnicode_GET_SIZE(py_unicode);
-#endif
+	length = PyUnicode_GetLength(py_unicode);
 	if (length <= 0) {
 		Py_DECREF(py_unicode);
 		Py_DECREF(py_substring);

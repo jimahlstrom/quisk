@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quisk"
+version = "4.2.53"
+requires-python = ">=3.13"
+description = 'QUISK is a Software Defined Radio (SDR) transceiver that can control various radio hardware.'
+license = "GPL-2.0-or-later"
+license-files = ["license.txt"]
+authors = [
+  {name = "James C. Ahlstrom", email="jahlstr@gmail.com"}
+]
+keywords = ['quisk', 'sdr', 'software defined radio']
+classifiers = [
+	'Development Status :: 6 - Mature',
+	'Environment :: X11 Applications',
+	'Environment :: Win32 (MS Windows)',
+	'Intended Audience :: End Users/Desktop',
+	'Natural Language :: English',
+	'Operating System :: POSIX :: Linux',
+	'Operating System :: Microsoft :: Windows',
+	'Programming Language :: Python :: 3',
+	'Programming Language :: C',
+	'Topic :: Communications :: Ham Radio',
+]
+
+[project.gui-scripts]
+quisk = "quisk.quisk:main"
+
+[project.urls]
+Homepage = "https://james.ahlstrom.name/quisk/index.html"
+Documentation = "https://james.ahlstrom.name/quisk/docs.html"
+Repository = "https://github.com/jimahlstrom/quisk"
+Changelog = "https://james.ahlstrom.name/quisk/CHANGELOG.txt"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+

@@ -2,6 +2,7 @@
  * This modue provides sound access for QUISK using the ALSA
  * library for Linux.
 */
+#include <string.h>
 #ifdef QUISK_HAVE_ALSA
 #include <Python.h>
 #include <complex.h>
@@ -454,7 +455,7 @@ static int device_list(PyObject * py, snd_pcm_stream_t stream, char * name)
 			}
 			snprintf(buf100, 100, "%s %s (hw:%d,%d)", card_text, pcm_text, card, dev);
 			if (py) {		// add to list of devices
-				PyList_Append(py, PyString_FromString(buf100));
+				PyList_Append(py, PyUnicode_FromString(buf100));
 			}
 			if (name) {		// return the "hw:" name
 				if (strstr(buf100, name)) {
@@ -1129,10 +1130,10 @@ static void midi_in_devices(PyObject * pylist, int just_names)
 					}
 					else {
 						pytup = PyTuple_New(2);
-						PyList_Append(pylist, pytup);
-						PyTuple_SET_ITEM(pytup, 0, PyUnicode_DecodeUTF8(friendly_name, strlen(friendly_name), "replace"));
+						PyTuple_SetItem(pytup, 0, PyUnicode_DecodeUTF8(friendly_name, strlen(friendly_name), "replace"));
 						snprintf(card_name, 32, "hw:%d,%d,%d", card, device, sub);
-						PyTuple_SET_ITEM(pytup, 1, PyUnicode_DecodeUTF8(card_name, strlen(card_name), "replace"));
+						PyTuple_SetItem(pytup, 1, PyUnicode_DecodeUTF8(card_name, strlen(card_name), "replace"));
+						PyList_Append(pylist, pytup);
 					}
 				}
 			}
