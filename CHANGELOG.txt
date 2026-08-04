@@ -1,3 +1,12 @@
+Quisk Version 4.2.54  August 2026
+=================================
+Quisk can now accept audio samples for Tx from TCI at rates 48000, 24000, 12000 and 8000. Please test.
+
+Quisk now includes program icons in the directory "quisk/icons". The Windows icon is quisk/icons/quisk.ico.
+On Windows, right-click the desktop icon and change the icon to <path-to-quisk>/quisk/icons/quisk.ico.
+The Linux icon is quisk/icons/quisk.svg. On Linux, change the quisk.desktop file to
+Icon=<path-to-quisk>/quisk/icons/quisk.svg.
+
 Quisk Version 4.2.53  June 2026
 ===============================
 I added TCI support for Software Defined Connectors CW skimmer. Please test.

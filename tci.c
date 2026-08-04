@@ -80,9 +80,14 @@ struct ClientData {	// data for each client
 	int audio_stream_channels;
 	int audio_stream_samples;
 	int audio_stream_bytes_per_sample;
+	// Rx stream decimation filters
 	struct quisk_cHB45Filter HalfBand1;
 	struct quisk_cFilter filtDecim3;
 	struct quisk_cFilter filtDecim48to24;
+	// Tx stream interpolation filters
+	struct quisk_cHB45Filter HalfBandTx1;
+	struct quisk_cHB45Filter HalfBandTx2;
+	struct quisk_cFilter filtTxInterp3;
 	int send_IQ_stream;
 	int IQ_stream_samplerate;
 } ;
@@ -137,6 +142,9 @@ struct _StreamTypes StreamTypes[NUM_STREAM_TYPES] = {
 	{"tx_chrono", 0},
 	{"lineout  ", 0}
 } ;
+
+static int interpolate_tx_audio_stream(complex double * cSamples, int nSamples, struct ClientData * ctx);
+static int decimate_audio_stream(complex double * cSamples, int nSamples, struct ClientData * ctx);
 
 static void PrintStream(const char * msg, size_t size, int always)
 {
@@ -203,6 +211,7 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 			for (i = 0; i < tci_clients_count; i++) {
 				if (tci_clients_list[i] == client) {
 					ctx->send_Rx_audio_stream = 1;
+					// Rx stream filters
 					memset(&ctx->HalfBand1,
 						0, sizeof(struct quisk_cHB45Filter));
 					quisk_filt_cInit(&ctx->filtDecim3,
@@ -361,6 +370,13 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 						tci_tx_audio_samples = 0;
 						tci_tx_audio_rate = ctx->audio_stream_samplerate;
 						pthread_mutex_unlock(&tx_buffer_mutex);
+						// Tx stream filters
+						memset(&ctx->HalfBandTx1,
+							0, sizeof(struct quisk_cHB45Filter));
+						memset(&ctx->HalfBandTx2,
+							0, sizeof(struct quisk_cHB45Filter));
+						quisk_filt_cInit(&ctx->filtTxInterp3,
+							quiskAudio24p3Coefs, sizeof(quiskAudio24p3Coefs)/sizeof(double));
 					}
 				}
 				else if (client == tci_tx_audio_client) {
@@ -426,7 +442,7 @@ static void onopen(ws_cli_conn_t client)
 		QuiskPrintf("TCI *Connection opened, addr: %s\n", cli);
 	}
 
-	sendframe_txt(client, "protocol:ESDR,1.4;");
+	sendframe_txt(client, "protocol:ExpertSDR3,2.0;");
 	//sendframe_txt(client, "vfo_limits:30000,30000000;");  Not known due to transverters
 	int if_limit = quisk_sound_state.sample_rate / 2;
 	snprintf(command, TCI_COMMAND_SIZE, "if_limits:%d,%d;", - if_limit, if_limit);
@@ -480,12 +496,14 @@ static void onclose(ws_cli_conn_t client)
 static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t size, int type)
 {
 	char echo_copy[TCI_RX_BUF_SIZE];
-	complex double sample;
+	int n;
+	static complex double * cCopy = NULL;
+	static int cCopy_size = 0;
+	struct ClientData * ctx = ws_get_connection_context(client);
 
 	if (type == WS_FR_OP_TXT) {
 		if (size > TCI_RX_BUF_SIZE / 2)
 			return;		// prevent overflow
-		struct ClientData * ctx = ws_get_connection_context(client);
 		if (ctx->msg_length + size >= TCI_RX_BUF_SIZE - 2)
 			ctx->msg_length = 0;	// prevent overflow
 		memcpy(ctx->msg_buf + ctx->msg_length, msg, size);	// append msg to buffer
@@ -519,7 +537,6 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 		const unsigned char * vpt2;
 		const unsigned char * vpt2_end;
 		int count2;
-		int buf_start=0, buf_end;
 
 		if (verbose >= 3) {
 			QuiskPrintf("\n\nMSG size %ld length %d\n   0 ", size, pt->length);
@@ -544,15 +561,19 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 		}
 
 		if (pt->type == TX_AUDIO_STREAM) {
+			n = pt->length * 7 + 100;	// Make room for 6X interpolation
+			if (cCopy_size < n) {
+				if (cCopy)
+					free(cCopy);
+				cCopy_size = n;
+				cCopy = (complex double *)malloc(cCopy_size * sizeof(complex double));
+			}
 			if (pt->length > 0 && client == tci_tx_audio_client) {
-				pthread_mutex_lock(&tx_buffer_mutex);
-				if (verbose >= 2)
-					buf_start = CircularBuffer(0, &sample, 0, 0);
+				n = 0;
 				switch (TxChrono.format) {
 				case TCI_INT16:
 					break;
 				case TCI_FLOAT32:
-					// Version 1.4 does not return the number of channels. We assume two channels.
 					// pt->length is the number of floats
 					while (vpt < vpt_end && count < pt->length) {
 						re = *(float *)vpt;
@@ -566,18 +587,16 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 						else {
 							im = re;
 						}
-						sample = (re + I * im) * (CLIP32 / 2);
-						CircularBuffer(0, &sample, 0, 1);
+						cCopy[n++] = (re + I * im) * (CLIP32 / 2);
 					}
 					if (verbose && count != pt->length)
 						QuiskPrintf("TCI *TX count %ld %d %d\n", size, count, pt->length);
+					n = interpolate_tx_audio_stream(cCopy, n, ctx);
+					pthread_mutex_lock(&tx_buffer_mutex);
+					CircularBuffer(0, cCopy, 0, n);
+					pthread_mutex_unlock(&tx_buffer_mutex);
 					break;
 				}
-				if (verbose >= 2) {
-					buf_end = CircularBuffer(0, &sample, 0, 0);
-					QuiskPrintf("TCI Tx buffer add %4d start %5d end %5d\n", count, buf_start, buf_end);
-				}
-				pthread_mutex_unlock(&tx_buffer_mutex);
 			}
 		}
 		if (verbose)
@@ -626,6 +645,29 @@ static int decimate_audio_stream(complex double * cSamples, int nSamples, struct
 		case 8000:
 			nSamples = quisk_cDecim2HB45(cSamples, nSamples, &ctx->HalfBand1);
 			nSamples = quisk_cDecimate(cSamples, nSamples, &ctx->filtDecim3, 3);
+			break;
+		default:
+			nSamples = 0;
+			break;
+	}
+	return nSamples;
+}
+
+static int interpolate_tx_audio_stream(complex double * cSamples, int nSamples, struct ClientData * ctx)
+{
+	switch(tci_tx_audio_rate) {		// Ending audio rate is 48000
+		case 48000:
+			break;
+		case 24000:
+			nSamples = quisk_cInterp2HB45(cSamples, nSamples, &ctx->HalfBandTx1);
+			break;
+		case 12000:
+			nSamples = quisk_cInterp2HB45(cSamples, nSamples, &ctx->HalfBandTx1);
+			nSamples = quisk_cInterp2HB45(cSamples, nSamples, &ctx->HalfBandTx2);
+			break;
+		case 8000:
+			nSamples = quisk_cInterpolate(cSamples, nSamples, &ctx->filtTxInterp3, 3);
+			nSamples = quisk_cInterp2HB45(cSamples, nSamples, &ctx->HalfBandTx1);
 			break;
 		default:
 			nSamples = 0;

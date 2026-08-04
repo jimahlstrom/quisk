@@ -82,7 +82,7 @@ N1MM+ and software that uses Hamlib.
 		'quisk.hermes', 'quisk.hiqsdr', 'quisk.afedrinet', 'quisk.soapypkg',
 		'quisk.sdrmicronpkg', 'quisk.perseuspkg', 'quisk.ac2yd', 'quisk.multuspkg'],
 	package_dir =  {'quisk' : '.'},
-	package_data = {'' : ['*.txt', '*.html', '*.so', '*.dll']},
+	package_data = {'' : ['*.txt', '*.html', '*.so', '*.dll'], 'quisk' : ['icons/*']},
 	entry_points = {'gui_scripts' : ['quisk = quisk.quisk:main', 'quisk_vna = quisk.quisk_vna:main']},
 	ext_modules = Modules,
 	provides = ['quisk'],
