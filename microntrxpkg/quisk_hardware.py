@@ -270,6 +270,10 @@ class Hardware(BaseHardware):
 
   def OnSpot(self, level):
     pass
+
+  def OnChangeRxTx(self, is_rx):
+    self.pc_control[45] = is_rx
+    self.rx_control_upd()
   
   def VarDecimGetChoices(self): # Return a list/tuple of strings for the decimation control.
     return list(map(str, self.sample_rates)) # convert integer to string
