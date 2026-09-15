@@ -115,6 +115,8 @@ int quiskTxHoldState;			// hold Tx until the repeater frequency shift is complet
 int quisk_is_vna;			// zero for normal program, one for the VNA program
 static int py_sample_rx_bytes=2;	// number of bytes in each I or Q sample: 1, 2, 3, or 4
 static int py_sample_rx_endian;		// order of sample array: 0 == little endian; 1 == big endian
+static int py_sample_tx_bytes;		// number of bytes in each I or Q sample: 2, 3, or 4
+static int py_sample_tx_endian;		// order of sample array: 0 == little endian; 1 == big endian
 static int py_bscope_bytes;
 static int py_bscope_endian;
 static int quisk_auto_notch;	// auto notch control
@@ -159,6 +161,8 @@ static int softrock_correct_active;	// 0 No correction adjustment; 1 Manual adju
 
 static complex double PySampleBuf[SAMP_BUFFER_SIZE];	// buffer for samples returned from Python
 static int PySampleCount;				// count of samples in buffer
+static uint8_t PySampleTxBytes[SAMP_BUFFER_SIZE * 8];	// buffer for Tx sample bytes to send to the hardware
+static int PySampleTxCount;
 static bool quisk_tx_inhibit;
 
 static int multirx_data_width;			// width of graph data to return
@@ -3018,6 +3022,17 @@ static PyObject * add_bscope_samples(PyObject * self, PyObject * args)
 	return Py_None;
 }
 
+static PyObject * get_tx_samples(PyObject * self, PyObject * args)
+{
+	PyObject * by;
+
+	if (!PyArg_ParseTuple (args, ""))
+		return NULL;
+	by = PyBytes_FromStringAndSize((const char *)PySampleTxBytes, PySampleTxCount);
+	PySampleTxCount = 0;
+	return by;
+}
+
 static void py_sample_start(void)
 {
 }
@@ -3038,6 +3053,83 @@ static int py_sample_read(complex double * cSamples)
 	n = PySampleCount;
 	PySampleCount = 0;
 	return n;
+}
+
+static int py_sample_tx_save(complex double * cSamples, int nSamples)
+{ // These cSamples are 16-bit integers from the microphone
+	int i;
+	int16_t rr, ii;
+	uint8_t rrH, rrL, iiH, iiL;
+
+	if (PySampleTxCount + nSamples * 8 >= SAMP_BUFFER_SIZE * 8) {
+		QuiskPrintf ("py_sample_tx_save: buffer is too full\n");
+		return 0;
+	}
+	for (i = 0; i < nSamples; i++) {
+		rr = (int16_t)creal(cSamples[i]);
+		ii = (int16_t)cimag(cSamples[i]);
+		rrH = 0xFF & (rr >> 8);
+		rrL = 0xFF & rr;
+		iiH = 0xFF & (ii >> 8);
+		iiL = 0xFF & ii;
+		if (py_sample_tx_endian == 0) {		// byte order of samples is little-endian
+			switch(py_sample_tx_bytes) {
+			case 2:
+				PySampleTxBytes[PySampleTxCount++] = rrL;
+				PySampleTxBytes[PySampleTxCount++] = rrH;
+				PySampleTxBytes[PySampleTxCount++] = iiL;
+				PySampleTxBytes[PySampleTxCount++] = iiH;
+				break;
+			case 3:
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = rrL;
+				PySampleTxBytes[PySampleTxCount++] = rrH;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = iiL;
+				PySampleTxBytes[PySampleTxCount++] = iiH;
+				break;
+			case 4:
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = rrL;
+				PySampleTxBytes[PySampleTxCount++] = rrH;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = iiL;
+				PySampleTxBytes[PySampleTxCount++] = iiH;
+				break;
+			}
+		}
+		else {		// byte order of samples is big-endian
+			switch(py_sample_tx_bytes) {
+			case 2:
+				PySampleTxBytes[PySampleTxCount++] = rrH;
+				PySampleTxBytes[PySampleTxCount++] = rrL;
+				PySampleTxBytes[PySampleTxCount++] = iiH;
+				PySampleTxBytes[PySampleTxCount++] = iiL;
+				break;
+			case 3:
+				PySampleTxBytes[PySampleTxCount++] = rrH;
+				PySampleTxBytes[PySampleTxCount++] = rrL;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = iiH;
+				PySampleTxBytes[PySampleTxCount++] = iiL;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				break;
+			case 4:
+				PySampleTxBytes[PySampleTxCount++] = rrH;
+				PySampleTxBytes[PySampleTxCount++] = rrL;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = iiH;
+				PySampleTxBytes[PySampleTxCount++] = iiL;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				PySampleTxBytes[PySampleTxCount++] = 0;
+				break;
+			}
+		}
+	}
+	return 0;
 }
 
 static PyObject * get_params(PyObject * self, PyObject * args)
@@ -3093,18 +3185,22 @@ static PyObject * set_params(PyObject * self, PyObject * args, PyObject * keywds
 {  /* Call with keyword arguments ONLY; change local parameters */
 	static char * kwlist[] = {"quisk_is_vna", "rx_bytes", "rx_endian", "read_error", "clip", 
 	"bscope_bytes", "bscope_endian", "bscope_size", "bandscopeScale", "hermes_pause", 
+	"tx_bytes", "tx_endian",
 	NULL} ;
 	int i, nbytes, read_error, clip, bscope_size, hermes_pause;
 
 	nbytes = read_error = clip = bscope_size = hermes_pause = -1;
-	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiiiiiiidii", kwlist,
+	if (!PyArg_ParseTupleAndKeywords (args, keywds, "|iiiiiiiidiii", kwlist,
 	&quisk_is_vna, &nbytes, &py_sample_rx_endian, &read_error, &clip,
-	&py_bscope_bytes, &py_bscope_endian, &bscope_size, &bandscopeScale, &hermes_pause))
+	&py_bscope_bytes, &py_bscope_endian, &bscope_size, &bandscopeScale, &hermes_pause,
+	&py_sample_tx_bytes, &py_sample_tx_endian))
 		return NULL;
 	if (nbytes != -1) {
 		py_sample_rx_bytes = nbytes;
-		quisk_sample_source4(py_sample_start, py_sample_stop, py_sample_read, NULL);
+		quisk_sample_source(py_sample_start, py_sample_stop, py_sample_read);
 	}
+	if (py_sample_tx_bytes)
+		quisk_pt_sample_write = py_sample_tx_save;
 	if (read_error != -1)
 		quisk_sound_state.read_error++;
 	if (clip != -1)
@@ -6090,6 +6186,7 @@ static PyMethodDef QuiskMethods[] = {
 	{"get_filter_rate", get_filter_rate, METH_VARARGS, "Return the sample rate used for the filters."},
 	{"get_tx_filter", quisk_get_tx_filter, METH_VARARGS, "Return the frequency response of the transmit filter."},
 	{"get_audio_graph", get_audio_graph, METH_VARARGS, "Return a tuple of the audio graph data."},
+	{"get_tx_samples", get_tx_samples, METH_VARARGS, "Return Tx samples to send to the hardware."},
 	{"softrock_corrections", softrock_corrections, METH_VARARGS, "Control and return SoftRock amplitude and phase corrections."},
 	{"measure_frequency", measure_frequency, METH_VARARGS, "Set the method, return the measured frequency."},
 	{"measure_audio", measure_audio, METH_VARARGS, "Set the method, return the measured audio voltage."},

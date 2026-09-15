@@ -65,13 +65,15 @@ else:
   Q3StringTypes = (str, unicode)
 
 class StdOutput(wx.Frame):
-  def __init__(self, app):
+  def __init__(self, app):	# Called from the GUI thread
     self.app = app
     self.ctrl = None
     self.old_stdout = sys.stdout
     self.old_stderr = sys.stderr
     self.old_excepthook = sys.excepthook
     self.path = os.path.join(app.QuiskFilesDir, "quisk_logfile.txt")
+    self.gui_thread = threading.get_native_id()
+    self.text_buffer = ''
     try:
       size = os.path.getsize(self.path)
     except:
@@ -116,6 +118,9 @@ class StdOutput(wx.Frame):
       self.fp.write(text)
       self.fp.write("\n")
   def write(self, text):
+    if threading.get_native_id() != self.gui_thread:
+      self.text_buffer += text		# When called by non-GUI thread, save text
+      return
     if self.fp:
       self.fp.write(text)
     if self.old_stdout:
@@ -124,6 +129,10 @@ class StdOutput(wx.Frame):
       self.ctrl.write(text)
   def flush(self):
     pass
+  def PrintBuffer(self):	# Print any saved text from non-GUI thread
+    if self.text_buffer:
+      print(self.text_buffer)
+      self.text_buffer = ''
   def ExceptHook(self, typ, value, traceb):
     self.Show(True)
     self.Raise()
@@ -1502,9 +1511,7 @@ class SoundThread(threading.Thread):
       #print ("Quisk thread %12.3f" % ((tm - self.time0) * 1E3))
       #self.time0 = tm
       if self.samples_from_python:
-        samples = Hardware.GetRxSamples()
-        if samples:
-          QS.set_params(rx_samples=samples)
+        Hardware.GetRxSamples()
       if self.poll_cw:
         Hardware.PollCwKey()
       if conf.midi_cwkey_device:
@@ -4694,6 +4701,7 @@ class App(wx.App):
     msg = QS.GetQuiskPrintf()
     if msg:
       print(msg, end='')
+    self.std_out_err.PrintBuffer()
     QS.close_key()
     if QS.tci_get_params("tci_clients_count") > 0:
       QS.tci_set_params(close=1)
@@ -4727,6 +4735,7 @@ class App(wx.App):
     msg = QS.GetQuiskPrintf()
     if msg:
       print(msg, end='')
+    self.std_out_err.PrintBuffer()
   def OnBtnOnOff(self, event):
     if event.GetEventObject().GetValue():	# Start samples
       try:
@@ -6894,6 +6903,7 @@ class App(wx.App):
       msg = QS.GetQuiskPrintf()
       if msg:
         print(msg, end='')
+      self.std_out_err.PrintBuffer()
       if self.screen == self.config_screen:
         self.screen.OnGraphData()			# Send message to draw new data
       if self.add_version and Hardware.GetFirmwareVersion() is not None:

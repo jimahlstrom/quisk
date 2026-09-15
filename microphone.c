@@ -73,7 +73,7 @@ static double modulation_index = 1.6;	// For FM transmit, the modulation index
 static int is_vox = 0;					// Is the VOX level exceeded?
 static int vox_level = CLIP16;			// VOX trigger level as a number 0 to CLIP16
 static int timeVOX = 2000;				// VOX hang time in milliseconds
-static int tx_sample_rate = 48000;	// Used for SoapySDR
+static int tx_sample_rate = 48000;	// Used for SoapySDR and Tx samples from Python
 static int reverse_tx_sideband;
 static int PsEnable = 0;
 static int PsCal = 0;
@@ -1305,7 +1305,7 @@ int quisk_process_microphone(int mic_sample_rate, complex double * cSamples, int
 		;	// hermes handles this itself
 	else if (quisk_play_state == SOFTWARE_CWKEY)
 		serial_key_samples(cSamples, count);
-        if(quisk_pt_sample_write) {	// Used for SoapySDR
+        if(quisk_pt_sample_write && key_down) {	// Used for SoapySDR and samples from Python
 		// Interpolate the mic samples to the Tx sample rate
 //printf("Tx sample rate %i\n", tx_sample_rate);
 		switch (tx_sample_rate) {

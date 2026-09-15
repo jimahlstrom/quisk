@@ -118,17 +118,24 @@ class Hardware:
     # length is the number of samples in each block of ADC samples, and equals the FFT size.
     QS.set_params(bscope_bytes=int_size, bscope_endian=endian, bscope_size=length)
     self.application.bandscope_clock = clock
+  def InitTxSamples(self, int_size, endian, rate):	# Tx sample initialization; you must call this from your hardware __init__().
+    # int_size is the number of bytes in each I or Q sample: 2, 3, or 4
+    # endian is the order of bytes in the sample: 0 == little endian; 1 == big endian
+    # This can be called again to change the format. For example, a different number of bytes for different sample rates.
+    QS.set_tx_audio(tx_sample_rate=rate)	# Available rates are 48, 50, 96, 100, 192 ksps
+    QS.set_params(tx_bytes=int_size, tx_endian=endian)
   #def PollCwKey(self):  # Optional. Called frequently by the sound thread to check the CW key status.
   #  pass        # Do not define if not needed.
   #def PollGuiControl(self):  # Optional. Called frequently by the GUI thread to change GUI settings (PTT etc.)
   #  pass        # Do not define if not needed.
-  def StartSamples(self):	# Quisk calls this from the sound thread to start sending samples.
+  def StartSamples(self):	# Quisk calls this from the sound thread to start samples.
     # If you return a string, it replaces the string returned from hardware open()
     pass
-  def StopSamples(self):	# Quisk calls this from the sound thread to stop sending samples.
+  def StopSamples(self):	# Quisk calls this from the sound thread to stop samples.
     pass
   def GetRxSamples(self):	# Quisk calls this frequently from the sound thread. Poll your hardware for samples.
     # Return any available samples by calling AddRxSamples() and perhaps AddBscopeSamples() from within this method.
+    # Call GetTxSamples() from within this method to return any Tx samples that must be sent.
     pass
   def AddRxSamples(self, samples):	# Call this from within GetRxSamples() to record the Rx samples.
     # "samples" is int_size of integer I data followed by int_size of integer Q data, repeated.
@@ -142,6 +149,8 @@ class Hardware:
     # For Python 2, "samples" must be a byte array or bytes or a string.
     # The number of bytes in "samples" must equal the block length times the bytes per sample.
     QS.add_bscope_samples(samples)
+  def GetTxSamples(self):	# Call this from within GetRxSamples() to return the Tx samples to send.
+    return QS.get_tx_samples()		# Return a Python bytes object
   def GotClip(self):		# Call this to indicate that samples were received with the clip (overrange) indicator true.
     QS.set_params(clip=1)
   def GotReadError(self, print_msg, msg):	# Call this to indicate an error in receiving the Rx samples.
