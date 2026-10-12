@@ -53,6 +53,41 @@ static int control_head_data_width;					// app.data_width of control head for gr
 static int packets_sent;
 static int packets_recd;
 
+///// The jitter buffer is thanks to Karl Heinz - K5KHK
+// Jitter buffer for the microphone samples received from the control head.  The network can hold
+// packets for 100 msec or more (Wi-Fi power saving and scanning) and then deliver them in a burst,
+// but the Hermes Tx buffer only has 50 msec of slack.  Without a buffer here, each late burst is an
+// underflow (a gap on the air) followed by an overflow (discarded samples).  So buffer mic_jb_target
+// frames before playing, and then release them at a steady MIC_JB_RATE.
+// The buffer adds its delay to the transmit audio, so it is off unless the configuration item
+// remote_radio_mic_jitter_ms is set.  When it is off, samples are passed on as they arrive.
+#define MIC_JB_RATE		8000	// frames per second sent by the control head
+#define MIC_JB_SIZE		8000	// ring buffer size in stereo frames
+#define MIC_JB_MAX_MS	500		// largest configurable delay; MIC_JB_SIZE must hold this plus MIC_JB_EXTRA
+#define MIC_JB_EXTRA	2000	// trim back to mic_jb_target above mic_jb_target + this (clock drift): 250 msec
+#define MIC_JB_IDLE		0.5		// seconds without packets that end a transmission
+
+static int16_t mic_jb[MIC_JB_SIZE * 2];
+static int mic_jb_target;	// frames to buffer before playing, from remote_radio_mic_jitter_ms; zero for off
+static int mic_jb_read, mic_jb_count, mic_jb_playing, mic_jb_starved;
+static int mic_jb_underruns, mic_jb_overruns;
+static double mic_jb_time, mic_jb_frac, mic_jb_last_packet;
+
+static void mic_jb_reset(void)
+{
+	int msec;
+
+	msec = QuiskGetConfigInt("remote_radio_mic_jitter_ms", 0);
+	if (msec < 0)
+		msec = 0;
+	else if (msec > MIC_JB_MAX_MS)
+		msec = MIC_JB_MAX_MS;
+	mic_jb_target = msec * MIC_JB_RATE / 1000;
+	mic_jb_read = mic_jb_count = mic_jb_playing = mic_jb_starved = 0;
+	mic_jb_underruns = mic_jb_overruns = 0;
+	mic_jb_frac = 0;
+}
+
 // Receive stereo 16-bit pcm radio speaker sound on the control head via UDP
 int read_remote_radio_sound_socket(complex double * cSamples)
 {
@@ -117,9 +152,9 @@ int read_remote_radio_sound_socket(complex double * cSamples)
 // Receive stereo 16-bit pcm microphone samples at the remote radio via UDP
 int read_remote_mic_sound_socket(complex double * cSamples)
 {
-	int i, bytes, nInt16, nSamples;
+	int i, j, bytes, nInt16, nSamples, nFrames;
 	int16_t buf[UDP_SEND_INT16];
-	double samp_r, samp_l;
+	double now, due;
 	struct timeval tm_wait;
 	fd_set fds;
 	static struct quisk_cHB45Filter HalfBand;
@@ -134,8 +169,8 @@ int read_remote_mic_sound_socket(complex double * cSamples)
 		quisk_filt_cInit(&cFiltInterp3, quiskAudio24p3Coefs, sizeof(quiskAudio24p3Coefs)/sizeof(double));
 	}
 
-	// read all available packets, one per loop
-	nSamples = 0;
+	// read all available packets into the jitter buffer, one per loop
+	now = QuiskTimeSec();
 	while (1) {
 		tm_wait.tv_sec = 0;
 		tm_wait.tv_usec = 0;
@@ -152,14 +187,70 @@ int read_remote_mic_sound_socket(complex double * cSamples)
 			break;
 		}
 		if (bytes > 0) {
+			if (mic_jb_starved) {	// the buffer ran dry; count it unless the transmission had ended
+				mic_jb_starved = 0;
+				if (now - mic_jb_last_packet < MIC_JB_IDLE)
+					mic_jb_underruns++;
+			}
+			mic_jb_last_packet = now;
 			nInt16 = bytes / 2;
-			for (i = 0; i < nInt16; i += 2) {
-				samp_r = buf[i];
-				samp_l = buf[i + 1];
-				cSamples[nSamples++] = (samp_r + I * samp_l) / CLIP16 * CLIP32;
+			for (i = 0; i + 1 < nInt16; i += 2) {
+				if (mic_jb_count >= MIC_JB_SIZE) {	// full: drop the oldest frame
+					mic_jb_read = (mic_jb_read + 1) % MIC_JB_SIZE;
+					mic_jb_count--;
+				}
+				j = (mic_jb_read + mic_jb_count) % MIC_JB_SIZE * 2;
+				mic_jb[j] = buf[i];
+				mic_jb[j + 1] = buf[i + 1];
+				mic_jb_count++;
 			}
 		}
 	} // while(1)
+
+	// release the frames that are due since the last call
+	nSamples = 0;
+	if (mic_jb_target == 0) {		// the jitter buffer is off: pass on everything received
+		nFrames = mic_jb_count;
+	}
+	else if ( ! mic_jb_playing) {
+		nFrames = 0;
+		if (mic_jb_count >= mic_jb_target) {
+			mic_jb_playing = 1;
+			mic_jb_time = now;
+			mic_jb_frac = 0;
+		}
+	}
+	else {
+		due = (now - mic_jb_time) * MIC_JB_RATE + mic_jb_frac;
+		if (due < 0)			// the clock was set back
+			due = 0;
+		else if (due > MIC_JB_RATE / 2)	// limit to 0.5 sec, well within SAMP_BUFFER_SIZE after interpolation
+			due = MIC_JB_RATE / 2;
+		mic_jb_time = now;
+		nFrames = (int)due;
+		mic_jb_frac = due - nFrames;
+		if (nFrames > mic_jb_count) {	// ran dry: play what is left, then buffer up again
+			nFrames = mic_jb_count;
+			mic_jb_playing = 0;
+			mic_jb_starved = 1;
+		}
+	}
+	for (i = 0; i < nFrames; i++) {
+		j = mic_jb_read * 2;
+		cSamples[nSamples++] = ((double)mic_jb[j] + I * (double)mic_jb[j + 1]) / CLIP16 * CLIP32;
+		mic_jb_read = (mic_jb_read + 1) % MIC_JB_SIZE;
+	}
+	mic_jb_count -= nFrames;
+	if (mic_jb_target && mic_jb_count > mic_jb_target + MIC_JB_EXTRA) {	// the control head's clock is faster than ours
+		i = mic_jb_count - mic_jb_target;
+		mic_jb_read = (mic_jb_read + i) % MIC_JB_SIZE;
+		mic_jb_count -= i;
+		mic_jb_overruns++;
+	}
+	if ((mic_jb_underruns || mic_jb_overruns) && now - mic_jb_last_packet > MIC_JB_IDLE) {
+		QuiskPrintf("Remote mic jitter buffer: %d underruns, %d overruns\n", mic_jb_underruns, mic_jb_overruns);
+		mic_jb_underruns = mic_jb_overruns = 0;
+	}
 
 	nSamples = quisk_cInterpolate(cSamples, nSamples, &cFiltInterp3, 3);
 	nSamples = quisk_cInterp2HB45(cSamples, nSamples, &HalfBand);
@@ -716,6 +807,7 @@ PyObject * quisk_start_remote_radio_remote_sound(PyObject * self, PyObject * arg
 
 	packets_sent = 0;
 	packets_recd = 0;
+	mic_jb_reset();
 
 	return Py_None;
 }
@@ -742,6 +834,7 @@ PyObject * quisk_stop_remote_radio_remote_sound(PyObject * self, PyObject * args
 	control_head_graph_socket_started = 0;
 	remote_radio_graph_socket_started = 0;
 	control_head_data_width = 0;
+	mic_jb_reset();
 
 	QuiskPrintf("total packets sent = %i, recd = %i\n", packets_sent, packets_recd);
 

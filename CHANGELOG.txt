@@ -1,3 +1,9 @@
+Quisk Version 4.2.55  October 2026
+==================================
+Karl Heinz, K5KHK, provided a patche to fix the AC2YD remote control head. He provided another patch
+to fix Hamlib control when using WSJT-X improved. He added a mic jitter buffer to the remote control
+head so it works over WiFi. Thanks Karl!
+
 Quisk Version 4.2.54  August 2026
 =================================
 Quisk can now accept audio samples for Tx from TCI at rates 48000, 24000, 12000 and 8000. Please test.

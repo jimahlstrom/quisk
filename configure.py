@@ -2302,7 +2302,8 @@ class ControlMixin:
         if name in ('hot_key_ptt_toggle', 'hot_key_ptt_if_hidden', 'keyupDelay', 'cwTone', 'pulse_audio_verbose_output',
                     'start_cw_delay', 'start_ssb_delay', 'maximum_tx_secs', 'quisk_serial_cts', 'quisk_serial_dsr',
                     'hot_key_ptt1', 'hot_key_ptt2', 'midi_ptt_toggle', 'TxRxSilenceMsec',
-                    'fixed_tune_offset', 'calibrate_temp_20', 'calibrate_temp_40', 'calibrate_current_0', 'calibrate_current_1'):
+                    'fixed_tune_offset', 'calibrate_temp_20', 'calibrate_temp_40', 'calibrate_current_0', 'calibrate_current_1',
+                    'remote_radio_mic_jitter_ms'):
           setattr(conf, name, x)
           application.ImmediateChange(name)
         elif name[0:4] in ('lin_', 'win_'):

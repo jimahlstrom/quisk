@@ -190,10 +190,20 @@ class Remot:	# Remote comtrol base class
       return
     try:	# Read any data from the socket
       text = self.remote_ctl_connection.recv(1024)
-    except:
-      #traceback.print_exc()
+      # Thanks to Karl Heinz - K5KHK
+    except (BlockingIOError, InterruptedError, socket.timeout): # No data available now
+      return
+    except OSError: # For example ConnectionResetError: the Control Head is gone
+      print('Closing Remote Control connection: recv() failed')
+      self.RemoteCtlClose(False)
       return
     else:					# We got some characters
+      if not text: # recv() returns nothing only when the Control Head has closed the connection
+        # Close now rather than waiting for the heartbeat timeout: a Control Head that
+        # crashed or lost its network may have left the transmitter keyed.
+        print('Closing Remote Control connection: closed by Control Head')
+        self.RemoteCtlClose(False)
+        return
       if not isinstance(text, str):
         text = text.decode('utf-8')
       self.received += text
@@ -375,13 +385,22 @@ class Remot:	# Remote comtrol base class
           self.cw_next_keydown = None
 
   def StopTransmit(self):
-    # TODO:  Add code for modes other than CW
+    # PTT code added thanks to Karl Heinz - K5KHK
+    # Called whenever the remote session ends (RemoteCtlClose).  Release everything the
+    # Control Head may have keyed: the CW key and, for voice and digital modes, PTT.
+    # Without the PTT release, a Control Head that disappears while transmitting (a crash,
+    # a lost network, a dead battery) leaves the transmitter keyed until someone unkeys it
+    # at the radio.
     while len(self.cw_event_queue):
       self.cw_event_queue.popleft()
     self.cw_next_event_ts = None
     self.cw_next_keydown = None
     self.cw_key_down = 0
     QS.set_remote_cwkey(0)
+    ptt = getattr(self.app, 'pttButton', None)
+    if ptt and ptt.GetValue():
+      print('Remote Control connection closed while transmitting: releasing PTT')
+      ptt.SetValue(0, True) # Same as releasing PTT at the radio; runs OnButtonPTT
 
   def ProcessRadioBtn(self, command, cmd_text):
     # Large and Small format screens send different button events for radio buttons.

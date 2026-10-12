@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quisk"
-version = "4.2.54"
+version = "4.2.55"
 requires-python = ">=3.13"
 description = 'QUISK is a Software Defined Radio (SDR) transceiver that can control various radio hardware.'
 license = "GPL-2.0-or-later"

@@ -742,6 +742,7 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     self.vfo = "Main"
     self.split_mode = 0
     self.split_vfo = 'VFO'
+    self.lock_mode = 0
     h = self.Handlers = {}
     h[''] = self.ErrProtocol
     h['dump_state']	= self.DumpState
@@ -765,6 +766,8 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     h['set_split_freq']	= self.SetSplitFreq
     h['get_split_vfo']	= self.GetSplitVfo
     h['set_split_vfo']	= self.SetSplitVfo
+    h['get_lock_mode']	= self.GetLockMode
+    h['set_lock_mode']	= self.SetLockMode
     self.MakeDumpState()
   def MakeDumpState(self):
     dump_state = []
@@ -1009,7 +1012,8 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
       self.ErrParam()
     else:
       freq = int(freq + 0.5)
-      self.app.ChangeRxTxFrequency(freq, None)
+      # Like a real radio, keep the mode. Hamlib caches the mode, so the client would not notice a mode change.
+      self.app.ChangeRxTxFrequency(freq, None, keep_mode=True)
   def GetSplitFreq(self):	# The Tx Frequency
     self.Reply('TX Frequency', self.app.txFreq + self.app.VFO, 0)
   def SetSplitFreq(self):	# The Tx Frequency
@@ -1022,7 +1026,7 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
     else:
       freq = int(freq + 0.5)
       # This always controls the Tx frequency
-      self.app.ChangeRxTxFrequency(None, freq)
+      self.app.ChangeRxTxFrequency(None, freq, keep_mode=True)
   def GetSplitVfo(self):
     self.Reply('Split', self.split_mode, 'TX VFO', self.split_vfo, 0)
   def SetSplitVfo(self):
@@ -1107,6 +1111,22 @@ class HamlibHandlerRig2:	# Test with telnet localhost 4532
         Lab = label
         diff = df
     self.app.filterButns.SetLabel(Lab, True)
+  # The code for the lock_mode and keep_mode was supplied by Karl Heinz - K5KHK. Thanks Karl!
+  def GetLockMode(self):
+    # Hamlib netrigctl always reads two lines, so an error reply "RPRT -4" makes it wait for its 10 second timeout.
+    # Reply like rigctld with the lock value and then "RPRT 0".
+    if self.extended:
+      self.Reply('Locked', self.lock_mode, 0)
+    else:
+      self.Send("%d\nRPRT 0\n" % self.lock_mode)
+  def SetLockMode(self):
+    lock = self.GetParamNumber()
+    try:
+      self.lock_mode = int(lock)
+    except:
+      self.ErrParam()
+    else:
+      self.Reply(0)
   def GetVfo(self):
     self.Reply('VFO', self.vfo, 0)
   def SetVfo(self):
@@ -6136,7 +6156,7 @@ class App(wx.App):
       self.freqDisplay.Display(self.txFreq + self.VFO)
       self.fldigi_new_freq = self.txFreq + self.VFO
     return change
-  def ChangeRxTxFrequency(self, rx_freq=None, tx_freq=None):
+  def ChangeRxTxFrequency(self, rx_freq=None, tx_freq=None, keep_mode=False):
     if not self.split_rxtx and not tx_freq:
       tx_freq = rx_freq
     if tx_freq:
@@ -6147,7 +6167,7 @@ class App(wx.App):
       else:					# Change the VFO
         vfo = (tx_freq // 5000) * 5000 - 5000
         tune = tx_freq - vfo
-        self.BandFromFreq(tx_freq)
+        self.BandFromFreq(tx_freq, keep_mode)
       self.ChangeHwFrequency(tune, vfo, 'FreqEntry')
     if rx_freq and self.split_rxtx:		# Frequency must be on-screen
       tune = rx_freq - self.VFO
@@ -6337,7 +6357,8 @@ class App(wx.App):
       self.pttButton.Enable(False)
     else:
       self.pttButton.Enable(True)
-  def BandFromFreq(self, frequency):	# Change to a new band based on the frequency
+  def BandFromFreq(self, frequency, keep_mode=False):	# Change to a new band based on the frequency
+    # If keep_mode is True, do not change to the mode saved for the new band.
     if self.screen == self.bandscope_screen:
       return
     try:
@@ -6359,7 +6380,8 @@ class App(wx.App):
           vfo, tune, mode = self.bandState[band]
         except KeyError:
           vfo, tune, mode = (0, 0, 'LSB')
-        self.modeButns.SetLabel(mode, True)
+        if not keep_mode:
+          self.modeButns.SetLabel(mode, True)
         self.ChangeBand(band)
         break
   def ChangeBand(self, band):

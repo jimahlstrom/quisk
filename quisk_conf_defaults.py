@@ -1508,6 +1508,19 @@ remote_radio_ip = ""
 # It is only necessary to enter it once on each computer.
 remote_radio_password = ""
 
+## remote_radio_mic_jitter_ms         Mic buffer msec for remote radio, integer
+# This is set on the remote radio, not the control head.  The network can hold the control
+# head's microphone packets for 100 msec or more and then deliver them in a burst, which is
+# common over Wi-Fi.  The transmit audio then has gaps.  This buffers the microphone audio
+# for the given time before transmitting it, so the bursts are smoothed out, at the cost
+# of that much more transmit delay.  Zero turns the buffer off, which is best on a wired
+# network.  If needed, try 150 msec.  The maximum is 500.  A change takes effect when the
+# next control head connects.
+remote_radio_mic_jitter_ms = 0
+#remote_radio_mic_jitter_ms = 100
+#remote_radio_mic_jitter_ms = 150
+#remote_radio_mic_jitter_ms = 250
+
 ## k4_tcp_ip			IP address for K4 TCP, text
 # This is the Quisk IP address for the TCP server implementing K4 commands.
 k4_tcp_ip = ""
