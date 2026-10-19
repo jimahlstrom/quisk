@@ -172,7 +172,7 @@ tx_level = {}
 # This is the maximum value of the slider.
 digital_tx_level = 100
 
-################ SuperPuper SDR, by UT3MK and US5NCJ 
+################ Receivers SuperPuper SDR, by UT3MK and US5NCJ 
 ## hardware_file_name		Hardware file path, rfile
 # This is the file that contains the control logic for each radio.
 #hardware_file_name = 'ut3mkpkg/quisk_hardware.py'
@@ -181,12 +181,13 @@ digital_tx_level = 100
 # This optional file adds additional controls for the radio.
 #widgets_file_name = ''
 
-## sdr1000_serial_port			Serial port of SuperPuper synth, text
-# This is serial Port for synthesizer, usually /dev/ttyUSBn on Linux or COMn on Win
-sdr1000_serial_port = "/dev/ttyUSB0"  # Windows: "COM3"  /  Linux: "/dev/ttyUSB0"
+## sdr1000_serial_port			Serial port, text
+# This is serial Port for the synthesizer, usually /dev/ttyUSBn on Linux or COMn on Win
+sdr1000_serial_port = "/dev/ttyUSB0"
 
-## sdr1000_serial_rate			Serial baud rate of synth, integer
-sdr1000_serial_rate = 57600          # PowerSDR CAT: до 115200
+## sdr1000_serial_rate			Serial baud rate, integer
+# This is baud rate for the synthesizer.
+sdr1000_serial_rate = 57600
 
 
 ################ Receivers HiQSDR, The original N2ADR and HiQSDR radios.
@@ -440,7 +441,7 @@ hermes_PTT_hang_time = 4
 # This option only applies to the Hermes Lite 2. Set this to None if you don't have a tuner.
 # Set this to "Tune" to control the Icom AH-4 compatible ATU attached to the Hermes Lite 2 end plate.
 # Note that this option only applies to the HL2 end plate, not the IO board.
-# A tuner attached to the IO board is controlled from a button on the last line of the screen.
+# A tuner attached to the IO board is controlled from a button on the last line of the screen.
 # Then when the Spot button is pressed with a positive power, a tune request is sent to the ATU.
 # If the Spot button is pressed with a zero power level, the tuner is set to bypass mode.
 # Changes are immediate (no need to restart).
