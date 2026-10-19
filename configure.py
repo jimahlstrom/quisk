@@ -727,17 +727,6 @@ class Configuration:
         count -= 1
     return count
 
-class xxConfigHelp(wx.html.HtmlWindow):	# The "Help with Radios" first-level page
-  """Create the help screen for the configuration tabs."""
-  def __init__(self, parent):
-    wx.html.HtmlWindow.__init__(self, parent, -1, size=(win_width, 100))
-    if "gtk2" in wx.PlatformInfo:
-      self.SetStandardFonts()
-    self.SetFonts("", "", [10, 12, 14, 16, 18, 20, 22])
-    self.SetBackgroundColour(parent.bg_color)
-    # read in text from file help_conf.html in the directory of this module
-    self.LoadFile('help_conf.html')
-
 class QPowerMeterCalibration(wx.Frame):
   """Create a window to enter the power output and corresponding ADC value AIN1/2"""
   def __init__(self, parent, local_names):

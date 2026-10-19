@@ -56,7 +56,7 @@ $(OBJDIR):
 	@mkdir -p $(OBJDIR)
 
 # Link the shared library object
-$(TARGET): $(OBJS)
+$(TARGET): $(OBJS) ac2yd/remote.o
 	$(CC) -o $@ $(OBJS) ac2yd/remote.o $(LDFLAGS)
 
 # Define the location for dependency files
