@@ -172,6 +172,21 @@ tx_level = {}
 # This is the maximum value of the slider.
 digital_tx_level = 100
 
+################ SuperPuper SDR, by UT3MK and US5NCJ 
+## hardware_file_name		Hardware file path, rfile
+# This is the file that contains the control logic for each radio.
+#hardware_file_name = 'ut3mkpkg/quisk_hardware.py'
+
+## widgets_file_name			Widget file path, rfile
+# This optional file adds additional controls for the radio.
+#widgets_file_name = ''
+
+## sdr1000_serial_port			Serial port of SuperPuper synth, text
+# This is serial Port for synthesizer, usually /dev/ttyUSBn on Linux or COMn on Win
+sdr1000_serial_port = "/dev/ttyUSB0"  # Windows: "COM3"  /  Linux: "/dev/ttyUSB0"
+
+## sdr1000_serial_rate			Serial baud rate of synth, integer
+sdr1000_serial_rate = 57600          # PowerSDR CAT: до 115200
 
 
 ################ Receivers HiQSDR, The original N2ADR and HiQSDR radios.
