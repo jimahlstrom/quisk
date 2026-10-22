@@ -4830,7 +4830,7 @@ static PyObject * set_multirx_mode(PyObject * self, PyObject * args)
 
 	if (!PyArg_ParseTuple (args, "ii", &index, &mode))
 		return NULL;
-	if (index < QUISK_MAX_SUB_RECEIVERS)
+	if (index >= 0 && index < QUISK_MAX_SUB_RECEIVERS)
 		multirx_mode[index] = mode;
 	Py_INCREF (Py_None);
 	return Py_None;
@@ -4842,7 +4842,7 @@ static PyObject * set_multirx_freq(PyObject * self, PyObject * args)
 
 	if (!PyArg_ParseTuple (args, "ii", &index, &freq))
 		return NULL;
-	if (index < QUISK_MAX_SUB_RECEIVERS)
+	if (index >= 0 && index < QUISK_MAX_SUB_RECEIVERS)
 		multirx_freq[index] = freq;
 	Py_INCREF (Py_None);
 	return Py_None;
@@ -4860,7 +4860,7 @@ static PyObject * set_multirx_play_channel(PyObject * self, PyObject * args)
 {
 	if (!PyArg_ParseTuple (args, "i", &multirx_play_channel))
 		return NULL;
-	if (multirx_play_channel >= QUISK_MAX_SUB_RECEIVERS)
+	if (multirx_play_channel < 0 || multirx_play_channel >= QUISK_MAX_SUB_RECEIVERS)
 		multirx_play_channel = -1;
 	Py_INCREF (Py_None);
 	return Py_None;
@@ -5638,6 +5638,10 @@ static void measure_freq(complex double * cSamples, int nSamples, int srate)
 			ipeak = i;
 		}
 	}
+	if (ipeak < 1)
+		ipeak = 1;
+	else if (ipeak > fft_size - 2)
+		ipeak = fft_size - 2;
 	c3 = 1.36 * (fft_average[ipeak+1] - fft_average[ipeak - 1]) / (fft_average[ipeak-1] + fft_average[ipeak] + fft_average[ipeak+1]);
 	freq = srate * (2 * (ipeak + c3) - fft_size) / 2 / fft_size;
 	freq += rx_tune_freq;
@@ -6006,6 +6010,8 @@ static PyObject * record_app(PyObject * self, PyObject * args)
 	}
 	// Initialize plan for multirx FFT
 	multirx_fft_width = multirx_data_width * MULTIRX_FFT_MULT;		// Use larger FFT than graph size
+	if (multirx_fft_next_samples)
+		free(multirx_fft_next_samples);
 	multirx_fft_next_samples = (fftw_complex *)malloc(multirx_fft_width * sizeof(fftw_complex));
 	multirx_fft_next_plan = quisk_create_or_cache_fftw_plan_dft_1d(multirx_fft_width, multirx_fft_next_samples, multirx_fft_next_samples, FFTW_FORWARD, FFTW_MEASURE);
 	if (current_graph)
