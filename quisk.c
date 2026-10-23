@@ -4987,7 +4987,7 @@ static PyObject * get_bandscope(PyObject * self, PyObject * args)	// Called by t
 			// Average the return FFT into the data width
 			tuple2 = PyTuple_New(graph_width);
 			frac = (double)L / graph_width;
-			scale = 1.0 / frac / fft_count / bandscope_size;
+			scale = 1.0 / frac / fft_count / bandscope_size / zoom;
 			rate = clock / 2.0;
 			copy2pixels(bandscopePixels, graph_width, bandscopeAverage, L, zoom, deltaf, rate);
 			for (i = 0; i < graph_width; i++) {	// for each pixel
@@ -5142,7 +5142,7 @@ static void softrock_correct_fft(fft_data * ptFft, int fixit)
 
 static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the GUI thread
 {
-	int i, j, k, m, n, index, ffts, ii, mm, m0, deltam;
+	int i, j, k, m, n, n_full, index, ffts, ii, mm, m0, deltam;
 	fft_data * ptFft;
 	PyObject * tuple2;
 	double d1, d2, scale, smeter_scale, zoom, deltaf;
@@ -5284,12 +5284,17 @@ static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the G
 			// scale /= pow(2.0, 31);			// Normalize to max == 1
 			scale = log10(count_fft) + log10(fft_size) + 31.0 * log10(2.0);
 			scale *= 20.0;
-			if (remote_control_slave)	// Send graph data to the control head
-				send_graph_data(fft_avg, fft_size, zoom, deltaf, fft_sample_rate, scale);
 			// Average the fft data of size fft_size into the size of data_width.
 			n = (int)(zoom * (double)fft_size / data_width + 0.5);
 			if (n < 1)
 				n = 1;
+			n_full = (int)((double)fft_size / data_width + 0.5);
+			if (n_full < 1)
+				n_full = 1;
+			// Keep the noise level stable as zoom reduces the bins summed per pixel.
+			scale -= 20.0 * log10((double)n_full / n);
+			if (remote_control_slave)	// Send graph data to the control head
+				send_graph_data(fft_avg, fft_size, zoom, deltaf, fft_sample_rate, scale);
 			for (i = 0; i < data_width; i++) {	// For each graph pixel
 				// find k, the starting index into the FFT data
 				k = (int)(fft_size * (
