@@ -83,6 +83,7 @@ struct AgcState {		// Store state information for the AGC
 
 struct watfall_row_t {
 	int x_origin;
+	double zoom;
 	struct watfall_row_t * next_row;
 	struct watfall_row_t * prior_row;
 	uint8_t pixels[2];	// extend to size
@@ -5379,6 +5380,7 @@ static PyObject * watfall_RgbData(PyObject * self, PyObject * args)	// Called by
 static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Called by the GUI thread
 {
 	int i, l, y_zero, y_scale, x_origin, size;
+	double zoom;
 	double yz, dB, gain;
 	uint8_t * pPixels;
 	Py_buffer rgb_data;
@@ -5386,7 +5388,7 @@ static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Calle
 	struct watfall_t * pWatfall;
 	struct watfall_row_t * pRow;
 
-	if (!PyArg_ParseTuple (args, "w*Oiidi", &rgb_data, &db_list, &y_zero, &y_scale, &gain, &x_origin))
+	if (!PyArg_ParseTuple (args, "w*Oiidid", &rgb_data, &db_list, &y_zero, &y_scale, &gain, &x_origin, &zoom))
 		return NULL;
 	if (PySequence_Check(db_list) != 1) {
 		PyErr_SetString (QuiskError, "List of dB data is not a sequence");
@@ -5398,6 +5400,7 @@ static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Calle
 	pRow = pWatfall->current_row;
 	// replace data in oldest row
 	pRow->x_origin = x_origin;
+	pRow->zoom = zoom;
 	pPixels = pRow->pixels;
 	size = PySequence_Size(db_list);
 	if (size > pWatfall->width)
@@ -5426,35 +5429,54 @@ static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Calle
 	return Py_None;
 }
 
-static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, int x, int width)
-{ // Copy the source to location x in the dest. The source and dest have size width.
-	if (x == 0) {
-		memcpy(dest, source, width);
+static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, int x_origin, int current_x_origin,
+	double zoom_ratio, int width)
+{
+	int x, image_width;
+	double offset;
+
+	image_width = width / 3;
+	if (fabs(zoom_ratio - 1.0) < 0.000001) {
+		x = (x_origin - current_x_origin) * 3;
+		if (x == 0) {
+			memcpy(dest, source, width);
+		}
+		else if (x >= width || x + width <= 0) {
+			memset(dest, 0, width);
+		}
+		else if (x > 0) {
+			memset(dest, 0, x);
+			memcpy(dest + x, source, width - x);
+		}
+		else {
+			x = -x;
+			memcpy(dest, source + x, width - x);
+			memset(dest + width - x, 0, x);
+		}
+		return dest + width;
 	}
-	else if (x >= width || x + width <= 0) {	// no overlap
-		memset(dest, 0, width);
-	}
-	else if (x > 0) {
-		memset(dest, 0, x);
-		memcpy(dest + x, source, width - x);
-	}
-	else {
-		x = -x;
-		memcpy(dest, source + x, width - x);
-		memset(dest + width - x, 0, x);
+
+	memset(dest, 0, width);
+	// Map each old row around its recorded center frequency into the current zoom.
+	offset = image_width / 2.0 + x_origin * zoom_ratio - current_x_origin - image_width / 2.0 * zoom_ratio;
+	for (x = 0; x < image_width; x++) {
+		int source_x = (int)floor(((x - offset) / zoom_ratio) + 0.5);
+		if (source_x >= 0 && source_x < image_width)
+			memcpy(dest + x * 3, source + source_x * 3, 3);
 	}
 	return dest + width;
 }
 
 static PyObject * watfall_GetPixels(PyObject * self, PyObject * args)	// Called by the GUI thread
 {
-	int i, j, x, x_origin, width, width3, height;
+	int i, j, x_origin, width, width3, height;
+	double zoom;
 	Py_buffer rgb_data, pixels;
 	struct watfall_t * pWatfall;
 	struct watfall_row_t * pRow;
 	uint8_t * pDest;
 
-	if (!PyArg_ParseTuple (args, "w*w*iii", &rgb_data, &pixels, &x_origin, &width, &height))
+	if (!PyArg_ParseTuple (args, "w*w*iiid", &rgb_data, &pixels, &x_origin, &width, &height, &zoom))
 		return NULL;
 
 	width3 = width * 3;
@@ -5463,19 +5485,27 @@ static PyObject * watfall_GetPixels(PyObject * self, PyObject * args)	// Called 
 	pRow = pWatfall->current_row;
 	if (waterfall_scroll_mode) {
 		for (j = 8; j > 1; j--) {
-			x = pRow->x_origin - x_origin;
-			x *= 3;
 			for (i = 0; i < j; i++) {		// Copy the first rows multiple times
-				pDest = watfall_copy(pDest, pRow->pixels, x, width3);
+				if (pRow->zoom > 0.0)
+					pDest = watfall_copy(pDest, pRow->pixels, pRow->x_origin, x_origin,
+						pRow->zoom / zoom, width3);
+				else {
+					memset(pDest, 0, width3);
+					pDest += width3;
+				}
 				height--;
 			}
 			pRow = pRow->next_row;
 		}
 	}
 	for (i = 0; i < height; i++) {
-		x = pRow->x_origin - x_origin;
-		x *= 3;
-		pDest = watfall_copy(pDest, pRow->pixels, x, width3);
+		if (pRow->zoom > 0.0)
+			pDest = watfall_copy(pDest, pRow->pixels, pRow->x_origin, x_origin,
+				pRow->zoom / zoom, width3);
+		else {
+			memset(pDest, 0, width3);
+			pDest += width3;
+		}
 		pRow = pRow->next_row;
 	}
 	PyBuffer_Release(&rgb_data);
