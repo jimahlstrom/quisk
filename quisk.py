@@ -2838,8 +2838,8 @@ class WaterfallDisplay(wx.Window):
     dc.SetBackground(wx.Brush('Black'))
     rit = self.DrawFilter(dc)
     dc.SetLogicalFunction(wx.COPY)
-    sample_rate = int(self.sample_rate * self.zoom)
-    x_origin = int(float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width + 0.5)
+    sample_rate = self.sample_rate * self.zoom
+    x_origin = float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width
     width = self.graph_width
     height = self.height - self.margin
     if height <= 0:
@@ -2885,8 +2885,8 @@ class WaterfallDisplay(wx.Window):
     # y_zero controls the center position of the colors. Set to a bit over the noise level.
     # y_scale controls how much the colors change when the sample deviates from y_zero.
     gain = self.rf_gain
-    sample_rate = int(self.sample_rate * self.zoom)
-    x_origin = int(float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width + 0.5)
+    sample_rate = self.sample_rate * self.zoom
+    x_origin = float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width
     QS.watfall_OnGraphData(self.rgb_data, data, y_zero, y_scale, gain, x_origin, self.zoom)
     self.Refresh(False)
   def SetTuningLine(self, tune_tx, tune_rx):

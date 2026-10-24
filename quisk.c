@@ -82,7 +82,7 @@ struct AgcState {		// Store state information for the AGC
 };
 
 struct watfall_row_t {
-	int x_origin;
+	double x_origin;
 	double zoom;
 	struct watfall_row_t * next_row;
 	struct watfall_row_t * prior_row;
@@ -5379,8 +5379,8 @@ static PyObject * watfall_RgbData(PyObject * self, PyObject * args)	// Called by
 
 static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Called by the GUI thread
 {
-	int i, l, y_zero, y_scale, x_origin, size;
-	double zoom;
+	int i, l, y_zero, y_scale, size;
+	double x_origin, zoom;
 	double yz, dB, gain;
 	uint8_t * pPixels;
 	Py_buffer rgb_data;
@@ -5388,7 +5388,7 @@ static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Calle
 	struct watfall_t * pWatfall;
 	struct watfall_row_t * pRow;
 
-	if (!PyArg_ParseTuple (args, "w*Oiidid", &rgb_data, &db_list, &y_zero, &y_scale, &gain, &x_origin, &zoom))
+	if (!PyArg_ParseTuple (args, "w*Oiiddd", &rgb_data, &db_list, &y_zero, &y_scale, &gain, &x_origin, &zoom))
 		return NULL;
 	if (PySequence_Check(db_list) != 1) {
 		PyErr_SetString (QuiskError, "List of dB data is not a sequence");
@@ -5429,7 +5429,7 @@ static PyObject * watfall_OnGraphData(PyObject * self, PyObject * args)	// Calle
 	return Py_None;
 }
 
-static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, int x_origin, int current_x_origin,
+static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, double x_origin, double current_x_origin,
 	double zoom_ratio, int width)
 {
 	int x, image_width;
@@ -5437,7 +5437,7 @@ static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, int x_origin, in
 
 	image_width = width / 3;
 	if (fabs(zoom_ratio - 1.0) < 0.000001) {
-		x = (x_origin - current_x_origin) * 3;
+		x = (int)floor(x_origin - current_x_origin + 0.5) * 3;
 		if (x == 0) {
 			memcpy(dest, source, width);
 		}
@@ -5458,9 +5458,10 @@ static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, int x_origin, in
 
 	memset(dest, 0, width);
 	// Map each old row around its recorded center frequency into the current zoom.
+	// Pixel i covers [i, i + 1), so map the center of each destination pixel.
 	offset = image_width / 2.0 + x_origin * zoom_ratio - current_x_origin - image_width / 2.0 * zoom_ratio;
 	for (x = 0; x < image_width; x++) {
-		int source_x = (int)floor(((x - offset) / zoom_ratio) + 0.5);
+		int source_x = (int)floor((x + 0.5 - offset) / zoom_ratio);
 		if (source_x >= 0 && source_x < image_width)
 			memcpy(dest + x * 3, source + source_x * 3, 3);
 	}
@@ -5469,14 +5470,14 @@ static uint8_t * watfall_copy(uint8_t * dest, uint8_t * source, int x_origin, in
 
 static PyObject * watfall_GetPixels(PyObject * self, PyObject * args)	// Called by the GUI thread
 {
-	int i, j, x_origin, width, width3, height;
-	double zoom;
+	int i, j, width, width3, height;
+	double x_origin, zoom;
 	Py_buffer rgb_data, pixels;
 	struct watfall_t * pWatfall;
 	struct watfall_row_t * pRow;
 	uint8_t * pDest;
 
-	if (!PyArg_ParseTuple (args, "w*w*iiid", &rgb_data, &pixels, &x_origin, &width, &height, &zoom))
+	if (!PyArg_ParseTuple (args, "w*w*diid", &rgb_data, &pixels, &x_origin, &width, &height, &zoom))
 		return NULL;
 
 	width3 = width * 3;
