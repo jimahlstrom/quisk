@@ -2839,12 +2839,12 @@ class WaterfallDisplay(wx.Window):
     rit = self.DrawFilter(dc)
     dc.SetLogicalFunction(wx.COPY)
     sample_rate = int(self.sample_rate * self.zoom)
-    x_origin = int(float(self.VFO) / sample_rate * self.data_width + 0.5)
+    x_origin = int(float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width + 0.5)
     width = self.graph_width
     height = self.height - self.margin
     if height <= 0:
       height = 1
-    QS.watfall_GetPixels(self.rgb_data, self.pixels, x_origin, width, height)
+    QS.watfall_GetPixels(self.rgb_data, self.pixels, x_origin, width, height, self.zoom)
     if wxVersion in ('2', '3'):
       bmap = wx.BitmapFromBuffer(width, height, self.pixels)
     else:
@@ -2886,8 +2886,8 @@ class WaterfallDisplay(wx.Window):
     # y_scale controls how much the colors change when the sample deviates from y_zero.
     gain = self.rf_gain
     sample_rate = int(self.sample_rate * self.zoom)
-    x_origin = int(float(self.VFO) / sample_rate * self.data_width + 0.5)
-    QS.watfall_OnGraphData(self.rgb_data, data, y_zero, y_scale, gain, x_origin)
+    x_origin = int(float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width + 0.5)
+    QS.watfall_OnGraphData(self.rgb_data, data, y_zero, y_scale, gain, x_origin, self.zoom)
     self.Refresh(False)
   def SetTuningLine(self, tune_tx, tune_rx):
     dc = wx.ClientDC(self)
@@ -2905,6 +2905,7 @@ class WaterfallDisplay(wx.Window):
     self.zoom = zoom
     self.zoom_deltaf = deltaf
     self.zoom_control = zoom_control
+    self.Refresh(False)
 
 class WaterfallScreen(wx.SplitterWindow):
   """Create a splitter window with a graph screen and a waterfall screen"""
@@ -6984,4 +6985,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
