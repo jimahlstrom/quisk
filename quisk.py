@@ -3662,8 +3662,8 @@ class HelpScreen(wx.html.HtmlWindow):
     if "gtk2" in wx.PlatformInfo:
       self.SetStandardFonts()
     self.SetFonts("", "", [10, 12, 14, 16, 18, 20, 22])
-    # read in text from file help.html in the directory of this module
-    self.LoadFile('help.html')
+    if not self.LoadFile('help.html'):
+      self.LoadFile('/usr/share/doc/quisk/help.html')
   def OnGraphData(self, data):
     pass
   def ChangeYscale(self, y_scale):

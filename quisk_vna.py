@@ -640,8 +640,8 @@ class HelpScreen(wx.html.HtmlWindow):
     if "gtk2" in wx.PlatformInfo:
       self.SetStandardFonts()
     self.SetFonts("", "", [10, 12, 14, 16, 18, 20, 22])
-    # read in text from file help.html in the directory of this module
-    self.LoadFile('help_vna.html')
+    if not self.LoadFile('help_vna.html'):
+      self.LoadFile('/usr/share/doc/quisk/help_vna.html')
   def OnLinkClicked(self, link):
     webbrowser.open(link.GetHref(), new=2)
 
