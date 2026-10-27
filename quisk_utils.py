@@ -1,6 +1,29 @@
 from __future__ import print_function
 from __future__ import division
 
+
+def wheel_step(rotation, delta, step):
+  """Convert signed wheel rotation into configured frequency steps.
+
+  A measured downward event reported rotation=-180 with delta=120. Scaling
+  that by a 50 Hz step gives -75 Hz; flooring the resulting absolute frequency
+  made downward tuning jump -100 Hz while upward tuning moved only +50 Hz.
+  Round the wheel units symmetrically first: +/-180 now gives +/-50 Hz, while
+  +/-240 still gives +/-100 Hz rather than being collapsed to one step.
+  """
+  if delta == 0:
+    return 0
+  rotation = int(rotation)
+  delta = int(delta)
+  step = int(step)
+  direction = -1 if rotation * delta < 0 else 1
+  whole_steps, remainder = divmod(abs(rotation), abs(delta))
+  if remainder * 2 > abs(delta):
+    whole_steps += 1
+
+  return direction * whole_steps * step
+
+
 class SplineInterpolator:	# From Numerical Recipes in C
   """Interpolate a table of [x, y] values."""
   def __init__(self, table, Xmin=None, Xmax=None):

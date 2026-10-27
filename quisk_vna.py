@@ -26,6 +26,7 @@ import threading, webbrowser
 import _quisk as QS
 from quisk_widgets import *
 import configure
+import quisk_utils
 
 DEBUG = 0
 
@@ -630,7 +631,7 @@ class GraphScreen(wx.Window):
       mouse_x, mouse_y = self.GetMousePosition(event)
       self.SetTxFreq(index=mouse_x - self.originX)
   def OnWheel(self, event):
-    tune = self.display.tune_tx + event.GetWheelRotation() // event.GetWheelDelta()
+    tune = self.display.tune_tx + quisk_utils.wheel_step(event.GetWheelRotation(), event.GetWheelDelta(), 1)
     self.SetTxFreq(index=tune)
 
 class HelpScreen(wx.html.HtmlWindow):
