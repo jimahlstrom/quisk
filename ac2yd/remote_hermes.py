@@ -7,6 +7,7 @@ class Hardware(Remot, Radio):
   def __init__(self, app, conf):
     Radio.__init__(self, app, conf)
     Remot.__init__(self, app, conf)
+    self.send_IO_Board = True
   def open(self):
     Remot.open(self)
     return "Server: " + Radio.open(self)
@@ -22,4 +23,10 @@ class Hardware(Remot, Radio):
           widg.text_temperature.GetLabel(), widg.text_pa_current.GetLabel(),
           widg.text_fwd_power.GetLabel(), widg.text_swr.GetLabel())
       self.RemoteCtlSend(t)
+      if self.send_IO_Board and self.have_IO_Board is not None:
+        self.send_IO_Board = False
+        if self.have_IO_Board:
+          self.RemoteCtlSend("HL2_IOBoard;1\n")
+        else:
+          self.RemoteCtlSend("HL2_IOBoard;0\n")
     

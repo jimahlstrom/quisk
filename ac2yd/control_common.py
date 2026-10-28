@@ -357,6 +357,10 @@ class ControlCommon(BaseHardware):	# This is the Hardware class for the control 
         self.app.main_frame.SetConfigText("Error: Remote radio %s has no password" % self.conf.remote_radio_ip)
       elif reply[0:9] == "HL2_TEMP;":
         setattr(self, "HL2_TEMP", reply[9:])
+      elif reply[0:13] == "HL2_IOBoard;1":
+        self.have_IO_Board = True
+      elif reply[0:13] == "HL2_IOBoard;0":
+        self.have_IO_Board = False
       elif reply[:3] == 'ERR':
         print('Remote Radio returned ' + reply)
       else:
