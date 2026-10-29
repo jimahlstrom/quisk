@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import division
 
 
-def wheel_step(rotation, delta, step):
+def wheel_step(rotation, delta, step):	# Mouse wheel corrections thanks to Bernd, DD4UG.
   """Convert signed wheel rotation into configured frequency steps.
 
   A measured downward event reported rotation=-180 with delta=120. Scaling

@@ -1,3 +1,9 @@
+Quisk Version 4.2.56  October 2026
+==================================
+I added some mouse wheel corrections by Bernd, DD4UG. Thanks Bernd! The directory /usr/share/doc/quisk
+is searched for documentation in addition to the Quisk directory. I added the SDR-1000 clone synthesizer
+by UT3MK and US5NCJ.
+
 Quisk Version 4.2.55  October 2026
 ==================================
 Karl Heinz, K5KHK, provided a patche to fix the AC2YD remote control head. He provided another patch

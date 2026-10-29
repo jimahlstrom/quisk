@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quisk"
-version = "4.2.55"
+version = "4.2.56"
 requires-python = ">=3.13"
 description = 'QUISK is a Software Defined Radio (SDR) transceiver that can control various radio hardware.'
 license = "GPL-2.0-or-later"
@@ -43,5 +43,6 @@ Changelog = "https://james.ahlstrom.name/quisk/CHANGELOG.txt"
 package-dir = {"quisk" = "."}
 packages = ["quisk", "quisk.n2adr", "quisk.softrock", "quisk.freedvpkg",
 		"quisk.hermes", "quisk.hiqsdr", "quisk.afedrinet", "quisk.soapypkg",
-		"quisk.sdrmicronpkg", "quisk.perseuspkg", "quisk.ac2yd", "quisk.multuspkg"]
+		"quisk.sdrmicronpkg", "quisk.perseuspkg", "quisk.ac2yd", "quisk.multuspkg",
+		"quisk.ut3mkpkg"]
 
