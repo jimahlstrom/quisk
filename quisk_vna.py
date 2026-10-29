@@ -26,6 +26,7 @@ import threading, webbrowser
 import _quisk as QS
 from quisk_widgets import *
 import configure
+import quisk_utils
 
 DEBUG = 0
 
@@ -630,7 +631,7 @@ class GraphScreen(wx.Window):
       mouse_x, mouse_y = self.GetMousePosition(event)
       self.SetTxFreq(index=mouse_x - self.originX)
   def OnWheel(self, event):
-    tune = self.display.tune_tx + event.GetWheelRotation() // event.GetWheelDelta()
+    tune = self.display.tune_tx + quisk_utils.wheel_step(event.GetWheelRotation(), event.GetWheelDelta(), 1)
     self.SetTxFreq(index=tune)
 
 class HelpScreen(wx.html.HtmlWindow):
@@ -640,8 +641,8 @@ class HelpScreen(wx.html.HtmlWindow):
     if "gtk2" in wx.PlatformInfo:
       self.SetStandardFonts()
     self.SetFonts("", "", [10, 12, 14, 16, 18, 20, 22])
-    # read in text from file help.html in the directory of this module
-    self.LoadFile('help_vna.html')
+    if not self.LoadFile('help_vna.html'):
+      self.LoadFile('/usr/share/doc/quisk/help_vna.html')
   def OnLinkClicked(self, link):
     webbrowser.open(link.GetHref(), new=2)
 

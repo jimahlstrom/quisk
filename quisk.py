@@ -39,6 +39,7 @@ from filters import Filters
 import dxcluster
 import configure
 import quisk_conf_defaults as conf
+import quisk_utils
 import quisk_wdsp
 
 for name in configure.name2format:      # Add defaults. These may be overwritten by a user config file.
@@ -2584,7 +2585,7 @@ class GraphScreen(wx.Window):
     else:
       self.mouse_is_rx = False
     if self.mouse_is_rx:
-      freq = application.rxFreq + self.VFO + wm * event.GetWheelRotation() // event.GetWheelDelta()
+      freq = application.rxFreq + self.VFO + quisk_utils.wheel_step(event.GetWheelRotation(), event.GetWheelDelta(), wm)
       if conf.freq_spacing:
         freq = self.FreqRound(freq, 0)
       elif freq >= 0:
@@ -2594,7 +2595,7 @@ class GraphScreen(wx.Window):
       tune = freq - self.VFO
       self.ChangeHwFrequency(self.txFreq, self.VFO, 'MouseWheel', event=event, rx_freq=tune)
     else:
-      freq = self.txFreq + self.VFO + wm * event.GetWheelRotation() // event.GetWheelDelta()
+      freq = self.txFreq + self.VFO + quisk_utils.wheel_step(event.GetWheelRotation(), event.GetWheelDelta(), wm)
       if conf.freq_spacing:
         freq = self.FreqRound(freq, 0)
       elif freq >= 0:
@@ -3662,8 +3663,8 @@ class HelpScreen(wx.html.HtmlWindow):
     if "gtk2" in wx.PlatformInfo:
       self.SetStandardFonts()
     self.SetFonts("", "", [10, 12, 14, 16, 18, 20, 22])
-    # read in text from file help.html in the directory of this module
-    self.LoadFile('help.html')
+    if not self.LoadFile('help.html'):
+      self.LoadFile('/usr/share/doc/quisk/help.html')
   def OnGraphData(self, data):
     pass
   def ChangeYscale(self, y_scale):

@@ -128,10 +128,10 @@ static PyObject * open_rx_udp(const char * ip, int port)
 			shutdown(rx_udp_socket, QUISK_SHUT_BOTH);
 			close(rx_udp_socket);
 			rx_udp_socket = INVALID_SOCKET;
-			sprintf(buf, "Failed to connect to UDP %s port %u", ip, port);
+			snprintf(buf, sizeof(buf), "Failed to connect to UDP %s port %u", ip, port);
 		}
 		else {
-			sprintf(buf, "Capture from UDP %s port %u", ip, port);
+			snprintf(buf, sizeof(buf), "Capture from UDP %s port %u", ip, port);
 #if DEBUG_IO
 			if (getsockopt(rx_udp_socket, SOL_SOCKET, SO_RCVBUF, (char *)&intbuf, &bufsize) == 0)
 			{
