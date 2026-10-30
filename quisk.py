@@ -2839,13 +2839,13 @@ class WaterfallDisplay(wx.Window):
     dc.SetBackground(wx.Brush('Black'))
     rit = self.DrawFilter(dc)
     dc.SetLogicalFunction(wx.COPY)
-    sample_rate = int(self.sample_rate * self.zoom)
-    x_origin = int(float(self.VFO) / sample_rate * self.data_width + 0.5)
+    sample_rate = self.sample_rate * self.zoom
+    x_origin = float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width
     width = self.graph_width
     height = self.height - self.margin
     if height <= 0:
       height = 1
-    QS.watfall_GetPixels(self.rgb_data, self.pixels, x_origin, width, height)
+    QS.watfall_GetPixels(self.rgb_data, self.pixels, x_origin, width, height, self.zoom)
     if wxVersion in ('2', '3'):
       bmap = wx.BitmapFromBuffer(width, height, self.pixels)
     else:
@@ -2886,9 +2886,9 @@ class WaterfallDisplay(wx.Window):
     # y_zero controls the center position of the colors. Set to a bit over the noise level.
     # y_scale controls how much the colors change when the sample deviates from y_zero.
     gain = self.rf_gain
-    sample_rate = int(self.sample_rate * self.zoom)
-    x_origin = int(float(self.VFO) / sample_rate * self.data_width + 0.5)
-    QS.watfall_OnGraphData(self.rgb_data, data, y_zero, y_scale, gain, x_origin)
+    sample_rate = self.sample_rate * self.zoom
+    x_origin = float(self.VFO + self.zoom_deltaf) / sample_rate * self.data_width
+    QS.watfall_OnGraphData(self.rgb_data, data, y_zero, y_scale, gain, x_origin, self.zoom)
     self.Refresh(False)
   def SetTuningLine(self, tune_tx, tune_rx):
     dc = wx.ClientDC(self)
@@ -2906,6 +2906,7 @@ class WaterfallDisplay(wx.Window):
     self.zoom = zoom
     self.zoom_deltaf = deltaf
     self.zoom_control = zoom_control
+    self.Refresh(False)
 
 class WaterfallScreen(wx.SplitterWindow):
   """Create a splitter window with a graph screen and a waterfall screen"""
@@ -5642,18 +5643,20 @@ class App(wx.App):
     # The display runs from f1 to f2. The original sample rate is "rate".
     # The new effective sample rate is rate * zoom.
     # f1 = deltaf + rate * (1 - zoom) / 2
-    if zoom_control < 50:
+    if zoom_control < 1:
       self.zoom = 1.0	# change back to not-zoomed mode
       self.zoom_deltaf = 0
       self.zooming = False
     else:
-      a = 1000.0 * self.sample_rate / (self.sample_rate - 2500.0)
-      self.zoom = 1.0 - zoom_control / a
-      if not self.zooming:		# set deltaf when zoom mode starts
+      # Zoom continuously from 1.0 to a minimum display width of 2500 Hz at zoom_control 1000
+      zoom_min = 2500.0 / self.sample_rate
+      self.zoom = 1.0 - zoom_control / 1000.0 * (1.0 - zoom_min)
+      if not self.zooming:		# set the zoom center when zoom mode starts
         center = self.multi_rx_screen.graph.filter_center
-        freq = self.rxFreq + center
-        self.zoom_deltaf = freq
+        self.zoom_center = self.rxFreq + center
         self.zooming = True
+      # Move the display center gradually from the VFO to the zoom center to avoid a jump
+      self.zoom_deltaf = int(self.zoom_center * zoom_control / 1000.0)
     zoom = self.zoom
     deltaf = self.zoom_deltaf
     self.graph.ChangeZoom(zoom, deltaf, zoom_control)
@@ -6985,4 +6988,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
