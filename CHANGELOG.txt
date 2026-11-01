@@ -1,3 +1,7 @@
+Quisk Version 4.2.57  November 2026
+===================================
+Bernd, DD4UG, submitted code to correct the waterfall colors for the zoom factor. Thanks Bernd!
+
 Quisk Version 4.2.56  October 2026
 ==================================
 I added some mouse wheel corrections by Bernd, DD4UG. Thanks Bernd! The directory /usr/share/doc/quisk
