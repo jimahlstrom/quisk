@@ -51,8 +51,6 @@ class IOBoard:
       return
     if not QS.get_params('rx_udp_started'):
       return
-    if self.hardware.application.remote_control_head:
-      return
     if self.have_IO_Board is None:
       resp = self.hardware.ReadI2C(0x7d, 0x41, 0)	# Check for the N2ADR HL2 IO Board
       if resp and resp[1] == 0xF1:

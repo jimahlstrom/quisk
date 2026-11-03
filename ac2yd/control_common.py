@@ -50,14 +50,11 @@
 # bursts (phrases).  Search in this file for "DEBUG_CW_SEND_DITS" to find configurable variables.
 # To get log output from remote_radio end, in quisk_hardware_remote_radio.py, set DEBUG_CW_JITTER = 1.
 
-from __future__ import print_function
-from __future__ import absolute_import
-
 DEBUG_CW_JITTER = 0
 DEBUG_CW_SEND_DITS = 0
 DEBUG = 0
 
-import socket, time, traceback, hmac, threading, select
+import socket, time, traceback, hmac, threading, select, json
 import _quisk as QS	# Access Quisk C functions via PyMethodDef QuiskMethods[] in quisk.c
 import wx
 
@@ -357,10 +354,18 @@ class ControlCommon(BaseHardware):	# This is the Hardware class for the control 
         self.app.main_frame.SetConfigText("Error: Remote radio %s has no password" % self.conf.remote_radio_ip)
       elif reply[0:9] == "HL2_TEMP;":
         setattr(self, "HL2_TEMP", reply[9:])
-      elif reply[0:13] == "HL2_IOBoard;1":
-        self.have_IO_Board = True
-      elif reply[0:13] == "HL2_IOBoard;0":
-        self.have_IO_Board = False
+      elif reply[0:12] == "JsonAppFunc;":
+        # Call the function self.app. + func with the specified arguments
+        # func = "%s.SetLabel" % self.idName
+        # application.Hardware.RemoteCtlSend(f'JsonAppFunc;{json.dumps((func, label, do_cmd, direction))}\n')
+        jargs = json.loads(reply[12:])
+        pyobj = self.app
+        for nam in jargs[0].split('.'):
+          pyobj = getattr(pyobj, nam)
+        if jargs[1:]:
+          pyobj(*jargs[1:])
+        else:
+          pyobj()
       elif reply[:3] == 'ERR':
         print('Remote Radio returned ' + reply)
       else:
