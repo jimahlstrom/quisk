@@ -5285,6 +5285,7 @@ static PyObject * get_graph(PyObject * self, PyObject * args)	// Called by the G
 			scale = log10(count_fft) + log10(fft_size) + 31.0 * log10(2.0);
 			scale *= 20.0;
 			// Average the fft data of size fft_size into the size of data_width.
+			// The correction to scale for the number of pixels was provided by Bernd, DD4UG. Thanks!
 			n = (int)(zoom * (double)fft_size / data_width + 0.5);	// number of pixels with zoom
 			n_full = (int)((double)fft_size / data_width + 0.5);	// number of pixels without zoom
 			if (n < 1)
