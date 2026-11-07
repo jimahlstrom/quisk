@@ -302,7 +302,10 @@ class Remot:	# Remote comtrol base class
         pyobj = self.app
         for nam in jargs[0].split('.'):
           pyobj = getattr(pyobj, nam)
-        pyobj(*jargs[1:])
+        if jargs[1:]:
+          pyobj(*jargs[1:])
+        else:
+          pyobj()
       # AGC and Squelch levels
       elif command == 'AGCSQLCH':
         ctrl = self.app.midiControls["AGCSlider"][0]

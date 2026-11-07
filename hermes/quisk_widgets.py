@@ -3,11 +3,7 @@
 #
 # This module is used to add extra widgets to the QUISK screen.
 
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
-import math, wx, time
+import math, wx, time, json
 import _quisk as QS
 from configure import ComboCtrl
 
@@ -81,7 +77,15 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
       szr.Add(self.text_pa_current, 0, flag=flag)
       szr.Add(self.text_fwd_power, 0, flag=flag)
       szr.Add(self.text_swr, 0, flag=flag)
-  def OnAtu(self, event):
+  def OnAtu(self, event=None):
+    if self.application.remote_control_head:
+      cmd =  self.atu_ctrl.GetValue()
+      if cmd == "Bypass" and self.application.spotButton.GetValue():
+        self.application.spotButton.SetValue(False, True)
+      self.hardware.RemoteCtlSend(f'JsonAppFunc;{json.dumps(("bottom_widgets.atu_ctrl.SetValue", cmd))}\n')
+      self.hardware.RemoteCtlSend(f'JsonAppFunc;{json.dumps(("bottom_widgets.OnAtu", ))}\n')
+      self.sliderLNA.SetFocus()
+      return
     if not self.hardware.io_board.have_IO_Board:
       self.atu_ctrl.SetText("No ATU")
       self.tuner_time = 0
@@ -184,19 +188,20 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
     self.text_swr.SetLabel(text)
     if self.tuner_time > 0:
       ret = self.hardware.io_board.Receive(self.REG_ANTENNA_TUNER)
+      text = ''
       if ret:
         code = ret[0]
         if code == 0:
-          t = "ATU OK"
+          text = "ATU OK"
           self.tuner_time = 0
         elif code == 0xEE:
-          t = "ATU RF"
+          text = "ATU RF"
         elif code >= 0xF0:
-          t = "Err 0x%X" % code
+          text = "Err 0x%X" % code
           self.tuner_time = 0
         else:
-          t = "ATU 0x%X" % code
-        self.atu_ctrl.SetText(t)
+          text = "ATU 0x%X" % code
+        self.atu_ctrl.SetText(text)
         if code == 0xEE:
           if not self.application.spotButton.GetValue():
             self.application.spotButton.SetValue(True, True)
@@ -206,7 +211,10 @@ class BottomWidgets:	# Add extra widgets to the bottom of the screen
         code = -1
       if code != 0 and self.tuner_time > 0 and time.time() - self.tuner_time > 20:
         self.tuner_time = 0
-        self.atu_ctrl.SetText("ATU Err")
+        text = "ATU Err"
+        self.atu_ctrl.SetText(text)
+      if self.application.remote_control_slave and text:
+        self.hardware.RemoteCtlSend(f'JsonAppFunc;{json.dumps(("bottom_widgets.atu_ctrl.SetText", text))}\n')
   def OnTextDataMenu(self, event):
     btn = event.GetEventObject()
     btn.PopupMenu(self.text_data_menu, (0,0))

@@ -1,6 +1,8 @@
 Quisk Version 4.2.57  November 2026
 ===================================
 Bernd, DD4UG, submitted code to correct the waterfall colors for the zoom factor. Thanks Bernd!
+I fixed the AC2YD remote so it is possible to control an antenna tuner at the remote radio from the
+control head at the PC. Please test.
 
 Quisk Version 4.2.56  October 2026
 ==================================
