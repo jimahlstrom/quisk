@@ -49,7 +49,7 @@ ws_cli_conn_t	tci_tx_audio_client;	// single client providing Tx audio
 double		tci_tx_audio_time;	// seconds since the start of Tx audio
 uint64_t	tci_tx_audio_samples;	// number of samples requested since the start of Tx audio
 int		tci_tx_audio_rate;	// samples per second
-int		tci_tx_audio_request;	// the Stream.length to request in TX_CHRONO
+int		tci_tx_sample_request;	// the number of samples to request in TX_CHRONO
 
 static pthread_mutex_t clients_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t tx_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -362,9 +362,11 @@ static int text_message(ws_cli_conn_t client, struct ClientData * ctx)
 					if (quisk_trx == 0) {
 						pthread_mutex_lock(&tx_buffer_mutex);
 						client_trx = 1;
-						tci_tx_audio_request = TCI_STREAM_DATA_BYTES /
+						tci_tx_sample_request = TCI_STREAM_DATA_BYTES /
 							ctx->audio_stream_bytes_per_sample / ctx->audio_stream_channels;
-						CircularBuffer(0, NULL, tci_tx_audio_request * 2, 0);
+                                                TxChrono.channels = ctx->audio_stream_channels;
+						TxChrono.sample_rate = ctx->audio_stream_samplerate;
+						CircularBuffer(0, NULL, tci_tx_sample_request * 2, 0);  // keep buffer half full
 						tci_tx_audio_client = client;
 						tci_tx_audio_time = QuiskTimeSec();
 						tci_tx_audio_samples = 0;
@@ -526,11 +528,9 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 		}
 	}
 	else if (type == WS_FR_OP_BIN) {
-		struct _Stream * pt = (struct _Stream *)msg;
+		struct _Stream * ptStream = (struct _Stream *)msg;
 		int count = 0;
 		float re, im;
-		int channels = TxChrono.channels;
-		int two_channels = channels == 2;
 		int header = 16 * sizeof(uint32_t);
 		const unsigned char * vpt = msg + header;
 		const unsigned char * vpt_end = vpt + (size - header);
@@ -539,7 +539,7 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 		int count2;
 
 		if (verbose >= 3) {
-			QuiskPrintf("\n\nMSG size %ld length %d\n   0 ", size, pt->length);
+			QuiskPrintf("\n\nMSG size %ld length %d\n   0 ", size, ptStream->length);
 			vpt2 = msg + header;
 			vpt2_end = vpt2 + (size - header);
 			count2 = 0;
@@ -560,22 +560,24 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 			QuiskPrintf("\n");
 		}
 
-		if (pt->type == TX_AUDIO_STREAM) {
-			n = pt->length * 7 + 100;	// Make room for 6X interpolation
+		if (ptStream->type == TX_AUDIO_STREAM) {
+			int channels = TxChrono.channels;
+			int two_channels = channels == 2;
+			n = ptStream->length * 7 + 100;	// Make room for 6X interpolation
 			if (cCopy_size < n) {
 				if (cCopy)
 					free(cCopy);
 				cCopy_size = n;
 				cCopy = (complex double *)malloc(cCopy_size * sizeof(complex double));
 			}
-			if (pt->length > 0 && client == tci_tx_audio_client) {
+			if (ptStream->length > 0 && client == tci_tx_audio_client) {
 				n = 0;
 				switch (TxChrono.format) {
 				case TCI_INT16:
 					break;
 				case TCI_FLOAT32:
-					// pt->length is the number of floats
-					while (vpt < vpt_end && count < pt->length) {
+					// ptStream->length is the number of floats
+					while (vpt < vpt_end && count < ptStream->length) {
 						re = *(float *)vpt;
 						vpt += sizeof(float);
 						count++;
@@ -589,8 +591,8 @@ static void onmessage(ws_cli_conn_t client, const unsigned char *msg, uint64_t s
 						}
 						cCopy[n++] = (re + I * im) * (CLIP32 / 2);
 					}
-					if (verbose && count != pt->length)
-						QuiskPrintf("TCI *TX count %ld %d %d\n", size, count, pt->length);
+					if (verbose && count != ptStream->length)
+						QuiskPrintf("TCI *TX count %ld %d %d\n", size, count, ptStream->length);
 					n = interpolate_tx_audio_stream(cCopy, n, ctx);
 					pthread_mutex_lock(&tx_buffer_mutex);
 					CircularBuffer(0, cCopy, 0, n);
@@ -811,10 +813,9 @@ int tci_get_mic(complex double * cSamples, int mic_count)	// called from the sou
 		// Ask for more samples
 		double dtime = QuiskTimeSec();
 		if (tci_tx_audio_samples < (dtime - tci_tx_audio_time) * tci_tx_audio_rate) {
-			TxChrono.length = tci_tx_audio_request;
+			TxChrono.length = tci_tx_sample_request * TxChrono.channels;    // TxChrono is the number of floats, not samples
 			sendframe_bin(tci_tx_audio_client, (const char *)&TxChrono, 16 * sizeof(uint32_t));
-			//tci_tx_audio_samples += tci_tx_audio_request;
-			tci_tx_audio_samples += tci_tx_audio_request / 2;	// Stream.length is floats, not samples
+			tci_tx_audio_samples += tci_tx_sample_request;
 			if (verbose >= 3)
 				QuiskPrintf("TCI Request more Tx samples\n");
 		}

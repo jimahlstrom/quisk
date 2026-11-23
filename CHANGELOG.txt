@@ -1,3 +1,8 @@
+Quisk Version 4.2.58  November 2026
+===================================
+Stew, N8VET contributed a windowed-sinc fractional resampler to correct for Tx clock differences.
+Thanks Stew! I also fixed a bug in the TCI interface for one-channel audio streams.
+
 Quisk Version 4.2.57  November 2026
 ===================================
 Bernd, DD4UG, submitted code to correct the waterfall colors for the zoom factor. Thanks Bernd!
